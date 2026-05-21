@@ -932,6 +932,10 @@ details[open] > summary .details-indicator {
     padding: 15px;
 }
 
+#confirmModal, #promptModal {
+    z-index: 1100;
+}
+
 .modal-backdrop {
     position: absolute;
     top: 0;

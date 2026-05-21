@@ -446,7 +446,9 @@ function saveNewMachine() {
     const model = document.getElementById('addMachModel').value;
     const serial = document.getElementById('addMachSerial').value.trim();
     const inv = document.getElementById('addMachInv').value.trim();
-    const freq = parseInt(document.getElementById('addMachFreq').value);
+    
+    const freqVal = parseInt(document.getElementById('addMachFreq').value);
+    const freq = isNaN(freqVal) ? 1 : freqVal;
 
     if (!model || !serial) return showToast('⚠️ Заполните Модель и S/N!');
     
@@ -507,6 +509,7 @@ function saveEditMachine() {
                 id: Date.now(),
                 machineId: m.id,
                 machineSerial: newSerial,
+                machineInv: m.inv || '',
                 date: new Date().toISOString(),
                 counter: "",
                 tasks: ["Замена системной платы / Смена S/N"],
@@ -525,6 +528,7 @@ function saveEditMachine() {
                 id: Date.now() + 1, 
                 machineId: m.id,
                 machineSerial: newSerial,
+                machineInv: m.inv || '',
                 date: new Date().toISOString(),
                 counter: "",
                 tasks: ["Перемещение оборудования"],
@@ -536,7 +540,9 @@ function saveEditMachine() {
         m.model = document.getElementById('detMachModel').value;
         m.serial = newSerial;
         m.inv = document.getElementById('detMachInv').value.trim();
-        m.freq = parseInt(document.getElementById('detMachFreq').value);
+        
+        const freqVal = parseInt(document.getElementById('detMachFreq').value);
+        m.freq = isNaN(freqVal) ? 1 : freqVal;
         
         saveData();
         closeAllModals();
@@ -669,12 +675,22 @@ function saveService() {
         }
     }
 
-    const isoDate = new Date(dateVal).toISOString();
+    let isoDate;
+    if (!dateVal) {
+        isoDate = new Date().toISOString();
+    } else {
+        try {
+            isoDate = new Date(dateVal).toISOString();
+        } catch (e) {
+            isoDate = new Date().toISOString();
+        }
+    }
 
     db.history.unshift({ 
         id: Date.now(), 
         machineId, 
         machineSerial: m.serial, 
+        machineInv: m.inv || '',
         date: isoDate, 
         counter, 
         tasks, 
@@ -707,7 +723,18 @@ function saveEditHistory() {
         const id = parseInt(document.getElementById('editHistId').value);
         const h = db.history.find(x => x.id === id);
         if (h) {
-            h.date = new Date(document.getElementById('editHistDate').value).toISOString();
+            const dateVal = document.getElementById('editHistDate').value;
+            let isoDate;
+            if (!dateVal) {
+                isoDate = new Date().toISOString();
+            } else {
+                try {
+                    isoDate = new Date(dateVal).toISOString();
+                } catch (e) {
+                    isoDate = new Date().toISOString();
+                }
+            }
+            h.date = isoDate;
             h.counter = document.getElementById('editHistCounter').value.trim();
             h.notes = document.getElementById('editHistNotes').value.trim();
             
@@ -1104,6 +1131,7 @@ function renderHistory() {
         const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
         
         const serial = h.machineSerial || (m ? m.serial : 'Неизвестно');
+        const inv = h.machineInv || (m ? m.inv : '');
         const model = m ? m.model : 'Удаленная модель';
         const clientText = a ? `${a.bank}, ${a.address}` : 'Адрес удален';
         
@@ -1125,7 +1153,7 @@ function renderHistory() {
                 
                 <div class="timeline-body">
                     <div class="timeline-meta-row">
-                        <div class="timeline-meta-item">S/N: <strong>${serial}</strong></div>
+                        <div class="timeline-meta-item">S/N: <strong>${serial}</strong>${inv ? ` | Inv: <strong>${inv}</strong>` : ''}</div>
                         ${h.counter ? `<div class="timeline-meta-item">Счетчик: <strong>${h.counter}</strong></div>` : ''}
                     </div>
                     <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">📍 ${clientText}</div>
@@ -1336,7 +1364,7 @@ function handleBarcodeScanned(barcode) {
     barcode = barcode.trim();
     
     // Find matching machine by Serial (S/N) or Inventory number
-    const match = db.machines.find(m => m.serial.toLowerCase() === barcode.toLowerCase() || (m.inv && m.inv.toLowerCase() === barcode.toLowerCase()));
+    const match = db.machines.find(m => (m.serial && m.serial.toLowerCase() === barcode.toLowerCase()) || (m.inv && m.inv.toLowerCase() === barcode.toLowerCase()));
     
     if (match) {
         showToast(`🔍 Найдена машина: ${match.model} (S/N: ${match.serial})`);
