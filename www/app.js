@@ -19,10 +19,23 @@ let db = JSON.parse(localStorage.getItem('fsm_db_v11')) || {
     models: ["Magner 150", "Kisan Newton", "SBM SB-2000"], 
     banks: ["MAIB", "Moldindconbank", "Victoriabank"], 
     routes: ["Маршрут 1 (Центр)", "Маршрут 2 (Ботаника)"], 
+    employees: ["Инженер 1", "Инженер 2"], 
     addresses: [], 
     machines: [], 
     history: [] 
 };
+
+// Helper to convert Firebase objects back to JS arrays
+function ensureArray(val) {
+    if (!val) return [];
+    if (Array.isArray(val)) {
+        return val.filter(x => x !== null && x !== undefined);
+    }
+    if (typeof val === 'object') {
+        return Object.values(val);
+    }
+    return [];
+}
 
 // Initialize app UI on load
 document.addEventListener('DOMContentLoaded', () => {
@@ -75,6 +88,9 @@ function initializeFirebase() {
         const database = firebase.database();
         const statusEl = document.getElementById('netStatus');
         
+        // Keep data synced locally for offline usage
+        database.ref('fsm_data').keepSynced(true);
+        
         // Listen for connectivity status
         database.ref(".info/connected").on("value", (snap) => {
             if (snap.val() === true) {
@@ -110,19 +126,20 @@ function initializeFirebase() {
             
             if (data) {
                 db = data;
-                // Safeguard against missing fields
-                if (!db.models) db.models = [];
-                if (!db.banks) db.banks = [];
-                if (!db.routes) db.routes = [];
-                if (!db.addresses) db.addresses = [];
-                if (!db.machines) db.machines = [];
-                if (!db.history) db.history = [];
+                // Convert arrays/objects from Firebase safely
+                db.models = ensureArray(db.models);
+                db.banks = ensureArray(db.banks);
+                db.routes = ensureArray(db.routes);
+                db.employees = ensureArray(db.employees);
+                db.addresses = ensureArray(db.addresses);
+                db.machines = ensureArray(db.machines);
+                db.history = ensureArray(db.history);
                 
                 db.machines.forEach(m => { 
-                    if (!m.characteristics) m.characteristics = []; 
+                    m.characteristics = ensureArray(m.characteristics); 
                 });
                 db.history.forEach(h => { 
-                    if (!h.tasks) h.tasks = []; 
+                    h.tasks = ensureArray(h.tasks); 
                 });
                 
                 localStorage.setItem('fsm_db_v11', JSON.stringify(db));
@@ -156,14 +173,20 @@ function initializeFirebase() {
     }
 }
 
-function saveData() {
+function saveData(path = null, data = null) {
     localStorage.setItem('fsm_db_v11', JSON.stringify(db));
     renderAll();
 
     if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-        firebase.database().ref('fsm_data').set(db).catch((error) => {
-            console.log("Синхронизация отложена (офлайн): " + error.message);
-        });
+        if (path !== null) {
+            firebase.database().ref('fsm_data/' + path).set(data).catch((error) => {
+                console.log(`Синхронизация пути ${path} отложена (офлайн): ` + error.message);
+            });
+        } else {
+            firebase.database().ref('fsm_data').set(db).catch((error) => {
+                console.log("Синхронизация отложена (офлайн): " + error.message);
+            });
+        }
     }
 }
 
@@ -332,7 +355,7 @@ function addDictItem(type, inputId) {
     const val = document.getElementById(inputId).value.trim();
     if (val && !db[type].includes(val)) { 
         db[type].push(val); 
-        saveData(); 
+        saveData(type, db[type]); 
         document.getElementById(inputId).value = ''; 
         showToast('✅ Добавлено в справочник');
     }
@@ -352,8 +375,12 @@ function editDictItem(type, oldVal) {
                     db.addresses.forEach(a => { if (a.route === oldVal) a.route = newVal.trim(); });
                 } else if (type === 'models') {
                     db.machines.forEach(m => { if (m.model === oldVal) m.model = newVal.trim(); });
+                } else if (type === 'employees') {
+                    db.machines.forEach(m => { if (m.employee === oldVal) m.employee = newVal.trim(); });
+                    db.history.forEach(h => { if (h.employee === oldVal) h.employee = newVal.trim(); });
                 }
                 
+                // Cascade updates affect multiple collections, so we save the entire DB
                 saveData();
                 showToast('✅ Справочник обновлен');
             });
@@ -364,7 +391,7 @@ function editDictItem(type, oldVal) {
 function deleteDictItem(type, val) {
     doubleConfirm(`УДАЛИТЬ "${val}" из справочника`, () => {
         db[type] = db[type].filter(x => x !== val);
-        saveData();
+        saveData(type, db[type]);
         showToast('🗑️ Удалено из справочника');
     });
 }
@@ -379,8 +406,9 @@ function addAddress() {
     
     if (!bank || !address || !route) return showToast('⚠️ Заполните все поля!');
     
-    db.addresses.push({ id: Date.now(), bank, address, route });
-    saveData();
+    const newAddr = { id: Date.now(), bank, address, route };
+    db.addresses.push(newAddr);
+    saveData('addresses/' + newAddr.id, newAddr);
     document.getElementById('addrText').value = '';
     showToast('✅ Адрес добавлен!');
 }
@@ -407,7 +435,7 @@ function saveEditAddress() {
             a.bank = document.getElementById('editAddrBank').value;
             a.address = document.getElementById('editAddrText').value.trim();
             a.route = document.getElementById('editAddrRoute').value;
-            saveData();
+            saveData('addresses/' + a.id, a);
             closeAllModals();
             showToast('✅ Адрес обновлен!');
         }
@@ -417,7 +445,7 @@ function saveEditAddress() {
 function deleteAddress(id) {
     doubleConfirm('УДАЛИТЬ этот адрес', () => {
         db.addresses = db.addresses.filter(x => x.id !== id);
-        saveData();
+        saveData('addresses/' + id, null);
         showToast('🗑️ Адрес удален');
     });
 }
@@ -433,6 +461,7 @@ function openAddMachineModal(addressId) {
     document.getElementById('addMachAddressText').innerText = `📍 ${a.bank}, ${a.address}`;
     
     populateDropdown('addMachModel', db.models);
+    populateDropdown('addMachEmployee', db.employees);
     
     document.getElementById('addMachSerial').value = '';
     document.getElementById('addMachInv').value = '';
@@ -446,23 +475,26 @@ function saveNewMachine() {
     const model = document.getElementById('addMachModel').value;
     const serial = document.getElementById('addMachSerial').value.trim();
     const inv = document.getElementById('addMachInv').value.trim();
+    const employee = document.getElementById('addMachEmployee').value;
     
     const freqVal = parseInt(document.getElementById('addMachFreq').value);
     const freq = isNaN(freqVal) ? 1 : freqVal;
 
     if (!model || !serial) return showToast('⚠️ Заполните Модель и S/N!');
     
-    db.machines.push({ 
+    const newMachine = { 
         id: Date.now(), 
         addressId: parseInt(addressId), 
         model, 
         serial, 
         inv, 
         freq, 
+        employee,
         characteristics: [] 
-    });
+    };
+    db.machines.push(newMachine);
     
-    saveData();
+    saveData('machines/' + newMachine.id, newMachine);
     closeAllModals();
     showToast('✅ Машина добавлена!');
 }
@@ -479,6 +511,7 @@ function openMachineDetails(machineId) {
     // Populate dropdowns in details modal
     populateAddressDropdown('detMachAddress', m.addressId);
     populateDropdown('detMachModel', db.models, m.model);
+    populateDropdown('detMachEmployee', db.employees, m.employee || '');
     
     document.getElementById('detMachSerial').value = m.serial;
     document.getElementById('detMachInv').value = m.inv || '';
@@ -505,7 +538,7 @@ function saveEditMachine() {
                 }
             });
 
-            db.history.unshift({
+            const hChange = {
                 id: Date.now(),
                 machineId: m.id,
                 machineSerial: newSerial,
@@ -514,7 +547,9 @@ function saveEditMachine() {
                 counter: "",
                 tasks: ["Замена системной платы / Смена S/N"],
                 notes: `Серийный номер изменен с [${m.serial}] на [${newSerial}]`
-            });
+            };
+            db.history.unshift(hChange);
+            saveData('history/' + hChange.id, hChange);
         }
 
         // Check if location was updated - Add log
@@ -524,7 +559,7 @@ function saveEditMachine() {
             const oldAddrText = oldAddr ? `${oldAddr.bank}, ${oldAddr.address}` : 'Неизвестно';
             const newAddrText = newAddr ? `${newAddr.bank}, ${newAddr.address}` : 'Неизвестно';
             
-            db.history.unshift({
+            const hMove = {
                 id: Date.now() + 1, 
                 machineId: m.id,
                 machineSerial: newSerial,
@@ -533,18 +568,21 @@ function saveEditMachine() {
                 counter: "",
                 tasks: ["Перемещение оборудования"],
                 notes: `Машина перемещена:\nОткуда: ${oldAddrText}\nКуда: ${newAddrText}`
-            });
+            };
+            db.history.unshift(hMove);
+            saveData('history/' + hMove.id, hMove);
         }
 
         m.addressId = newAddressId;
         m.model = document.getElementById('detMachModel').value;
         m.serial = newSerial;
         m.inv = document.getElementById('detMachInv').value.trim();
+        m.employee = document.getElementById('detMachEmployee').value;
         
         const freqVal = parseInt(document.getElementById('detMachFreq').value);
         m.freq = isNaN(freqVal) ? 1 : freqVal;
         
-        saveData();
+        saveData('machines/' + m.id, m);
         closeAllModals();
         showToast('✅ Данные машины обновлены!');
     });
@@ -554,7 +592,7 @@ function deleteMachine() {
     doubleConfirm('УДАЛИТЬ эту машину', () => {
         const id = parseInt(document.getElementById('detMachId').value);
         db.machines = db.machines.filter(x => x.id !== id);
-        saveData();
+        saveData('machines/' + id, null);
         closeAllModals();
         showToast('🗑️ Машина удалена');
     });
@@ -590,9 +628,10 @@ function addCharacteristic() {
     const m = db.machines.find(x => x.id === machineId);
     if (m) {
         if (!m.characteristics) m.characteristics = [];
-        m.characteristics.push({ id: Date.now(), text });
+        const newChar = { id: Date.now(), text };
+        m.characteristics.push(newChar);
         document.getElementById('detNewCharText').value = '';
-        saveData();
+        saveData('machines/' + m.id, m);
         renderCharacteristicsList(machineId);
         showToast('✅ Характеристика добавлена');
     }
@@ -608,7 +647,7 @@ function editCharacteristic(machineId, charId) {
         if (newText !== null && newText.trim() !== "" && newText !== c.text) {
             doubleConfirm('ИЗМЕНИТЬ эту характеристику', () => {
                 c.text = newText.trim();
-                saveData();
+                saveData('machines/' + m.id, m);
                 renderCharacteristicsList(machineId);
                 showToast('✅ Характеристика обновлена');
             });
@@ -621,7 +660,7 @@ function deleteCharacteristic(machineId, charId) {
         const m = db.machines.find(x => x.id === machineId);
         if (m) {
             m.characteristics = m.characteristics.filter(x => x.id !== charId);
-            saveData();
+            saveData('machines/' + m.id, m);
             renderCharacteristicsList(machineId);
             showToast('🗑️ Характеристика удалена');
         }
@@ -650,7 +689,11 @@ function openServiceModal(machineId) {
     document.getElementById('modalDate').value = getLocalDatetimeString(new Date());
     document.getElementById('modalCounter').value = '';
     document.getElementById('modalNotes').value = '';
+    document.getElementById('modalParts').value = '';
     document.querySelectorAll('.work-check').forEach(cb => cb.checked = false);
+    
+    // Populate performer dropdown and preselect machine's responsible employee
+    populateDropdown('modalEmployee', db.employees, m.employee || '');
     
     document.getElementById('serviceModal').style.display = 'flex';
 }
@@ -659,6 +702,8 @@ function saveService() {
     const machineId = parseInt(document.getElementById('modalMachineId').value);
     const dateVal = document.getElementById('modalDate').value;
     let counter = document.getElementById('modalCounter').value.trim();
+    const employee = document.getElementById('modalEmployee').value;
+    const parts = document.getElementById('modalParts').value.trim();
     const notes = document.getElementById('modalNotes').value.trim();
     let tasks = [];
     document.querySelectorAll('.work-check:checked').forEach(cb => tasks.push(cb.value));
@@ -686,18 +731,21 @@ function saveService() {
         }
     }
 
-    db.history.unshift({ 
+    const newRecord = { 
         id: Date.now(), 
         machineId, 
         machineSerial: m.serial, 
         machineInv: m.inv || '',
         date: isoDate, 
         counter, 
+        employee,
+        parts,
         tasks, 
         notes 
-    });
+    };
+    db.history.unshift(newRecord);
     
-    saveData();
+    saveData('history/' + newRecord.id, newRecord);
     closeAllModals();
     showToast('✅ ТО успешно сохранено!');
 }
@@ -710,10 +758,14 @@ function openEditHistory(id) {
     document.getElementById('editHistDate').value = getLocalDatetimeString(h.date);
     document.getElementById('editHistCounter').value = h.counter || '';
     document.getElementById('editHistNotes').value = h.notes || '';
+    document.getElementById('editHistParts').value = h.parts || '';
     
     document.querySelectorAll('.edit-work-check').forEach(cb => {
         cb.checked = h.tasks ? h.tasks.includes(cb.value) : false;
     });
+    
+    // Populate performing employee dropdown
+    populateDropdown('editHistEmployee', db.employees, h.employee || '');
     
     document.getElementById('editHistoryModal').style.display = 'flex';
 }
@@ -736,13 +788,15 @@ function saveEditHistory() {
             }
             h.date = isoDate;
             h.counter = document.getElementById('editHistCounter').value.trim();
+            h.employee = document.getElementById('editHistEmployee').value;
+            h.parts = document.getElementById('editHistParts').value.trim();
             h.notes = document.getElementById('editHistNotes').value.trim();
             
             let tasks = [];
             document.querySelectorAll('.edit-work-check:checked').forEach(cb => tasks.push(cb.value));
             h.tasks = tasks;
             
-            saveData();
+            saveData('history/' + h.id, h);
             closeAllModals();
             showToast('✅ Запись истории обновлена!');
         }
@@ -752,7 +806,7 @@ function saveEditHistory() {
 function deleteHistory(id) {
     doubleConfirm('УДАЛИТЬ эту запись обслуживания', () => {
         db.history = db.history.filter(x => x.id !== id);
-        saveData();
+        saveData('history/' + id, null);
         showToast('🗑️ Запись истории удалена');
     });
 }
@@ -807,6 +861,7 @@ function renderSettings() {
     renderDictContainer('modelListContainer', 'models');
     renderDictContainer('bankListContainer', 'banks');
     renderDictContainer('routeListContainer', 'routes');
+    renderDictContainer('employeeListContainer', 'employees');
 }
 
 function renderDictContainer(containerId, type) {
@@ -922,10 +977,10 @@ function renderDashboard() {
                 }
                 
                 addrHtml += `
-                    <div class="list-item clickable" onclick="openServiceModal(${mach.id})" data-machine-text="${mach.model.toLowerCase()} ${mach.serial.toLowerCase()} ${mach.inv ? mach.inv.toLowerCase() : ''}">
+                    <div class="list-item clickable" onclick="openServiceModal(${mach.id})" data-machine-text="${mach.model.toLowerCase()} ${mach.serial.toLowerCase()} ${mach.inv ? mach.inv.toLowerCase() : ''}${mach.employee ? ' ' + mach.employee.toLowerCase() : ''}">
                         <div class="list-item-main">
                             <span class="list-item-title">${mach.model}</span>
-                            <span class="list-item-subtitle">S/N: ${mach.serial} ${mach.inv ? '| Inv: ' + mach.inv : ''}</span>
+                            <span class="list-item-subtitle">S/N: ${mach.serial} ${mach.inv ? ' | Inv: ' + mach.inv : ''}${mach.employee ? ' | Отв: ' + mach.employee : ''}</span>
                         </div>
                         <span class="badge ${badgeClass}">${badgeText}</span>
                     </div>
@@ -1025,10 +1080,10 @@ function renderAddresses() {
             machHtml = '<p style="font-size:11px; color:var(--text-muted); text-align:center; margin:8px 0;">Оборудование отсутствует.</p>';
         } else {
             machHtml = addrMachines.map(m => `
-                <div class="machine-pill" onclick="openMachineDetails(${m.id})" data-machine-text="${m.model.toLowerCase()} ${m.serial.toLowerCase()} ${m.inv ? m.inv.toLowerCase() : ''}">
+                <div class="machine-pill" onclick="openMachineDetails(${m.id})" data-machine-text="${m.model.toLowerCase()} ${m.serial.toLowerCase()} ${m.inv ? m.inv.toLowerCase() : ''}${m.employee ? ' ' + m.employee.toLowerCase() : ''}">
                     <div class="machine-pill-info">
                         <span class="machine-model">${m.model}</span>
-                        <span class="machine-sn">S/N: ${m.serial} ${m.inv ? '| Inv: ' + m.inv : ''}</span>
+                        <span class="machine-sn">S/N: ${m.serial} ${m.inv ? ' | Inv: ' + m.inv : ''}${m.employee ? ' | Отв: ' + m.employee : ''}</span>
                     </div>
                     <span class="badge info" style="padding: 2px 8px; font-size:10px;">${m.freq} ТО/мес</span>
                 </div>
@@ -1092,13 +1147,17 @@ function renderHistory() {
             const addrText = a ? a.address.toLowerCase() : '';
             const notes = h.notes ? h.notes.toLowerCase() : '';
             const taskStr = h.tasks ? h.tasks.join(' ').toLowerCase() : '';
+            const employee = h.employee ? h.employee.toLowerCase() : '';
+            const parts = h.parts ? h.parts.toLowerCase() : '';
             
             return model.includes(searchVal) || 
                    serial.includes(searchVal) || 
                    bank.includes(searchVal) || 
                    addrText.includes(searchVal) || 
                    notes.includes(searchVal) ||
-                   taskStr.includes(searchVal);
+                   taskStr.includes(searchVal) ||
+                   employee.includes(searchVal) ||
+                   parts.includes(searchVal);
         });
     }
     
@@ -1157,9 +1216,11 @@ function renderHistory() {
                         ${h.counter ? `<div class="timeline-meta-item">Счетчик: <strong>${h.counter}</strong></div>` : ''}
                     </div>
                     <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">📍 ${clientText}</div>
+                    ${h.employee ? `<div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">👤 Исполнитель: <strong>${h.employee}</strong></div>` : ''}
                     
                     ${tasksHtml}
                     ${h.notes ? `<div class="timeline-notes">${h.notes}</div>` : ''}
+                    ${h.parts ? `<div class="timeline-notes" style="border-left-color: var(--primary-color);">🛠️ Использованные запчасти:<br>${h.parts}</div>` : ''}
                 </div>
                 
                 <div class="actions" style="margin-top: 12px; display:flex; justify-content:flex-end;">
@@ -1304,110 +1365,4 @@ window.applyAddressSearch = applyAddressSearch;
 window.filterAddressTab = filterAddressTab;
 window.filterAddressCardMachines = filterAddressCardMachines;
 
-// =========================================================================
-// BARCODE / QR SCANNER SERVICE (PWA WEB-BASED CAMERA SCANNER)
-// =========================================================================
-let html5QrScanner = null;
 
-function triggerBarcodeScan() {
-    showToast('⏳ Инициализация камеры...');
-    document.getElementById('cameraScannerModal').style.display = 'flex';
-    
-    if (html5QrScanner) {
-        html5QrScanner.clear();
-    }
-    
-    html5QrScanner = new Html5Qrcode("reader");
-    
-    const config = { 
-        fps: 15, 
-        qrbox: { width: 280, height: 180 },
-        aspectRatio: 1.0
-    };
-    
-    html5QrScanner.start(
-        { facingMode: "environment" },
-        config,
-        (decodedText, decodedResult) => {
-            stopCameraScanner();
-            handleBarcodeScanned(decodedText);
-        },
-        (errorMessage) => {
-            // Parse error (silent during search)
-        }
-    ).catch(err => {
-        console.error("Camera start error:", err);
-        stopCameraScanner();
-        // Fallback: browser custom prompt if camera is blocked/unavailable
-        customPrompt("📷 Камера недоступна. Введите или вставьте S/N машины вручную:", "", (barcode) => {
-            if (barcode !== null && barcode.trim() !== "") {
-                handleBarcodeScanned(barcode);
-            }
-        });
-    });
-}
-
-function stopCameraScanner() {
-    document.getElementById('cameraScannerModal').style.display = 'none';
-    if (html5QrScanner) {
-        html5QrScanner.stop().then(() => {
-            html5QrScanner = null;
-        }).catch(err => {
-            console.error("Failed to stop scanner:", err);
-            html5QrScanner = null;
-        });
-    }
-}
-
-function handleBarcodeScanned(barcode) {
-    if (!barcode) return;
-    barcode = barcode.trim();
-    
-    // Find matching machine by Serial (S/N) or Inventory number
-    const match = db.machines.find(m => (m.serial && m.serial.toLowerCase() === barcode.toLowerCase()) || (m.inv && m.inv.toLowerCase() === barcode.toLowerCase()));
-    
-    if (match) {
-        showToast(`🔍 Найдена машина: ${match.model} (S/N: ${match.serial})`);
-        openServiceModal(match.id);
-    } else {
-        showToast(`⚠️ Машина с S/N [${barcode}] не найдена в базе`);
-        openScannerAddMachineModal(barcode);
-    }
-}
-
-function openScannerAddMachineModal(barcode) {
-    document.getElementById('scannedSerialVal').value = barcode;
-    document.getElementById('scannedSerialText').innerText = barcode;
-    
-    // Populate the addresses dropdown
-    populateAddressDropdown('scannerAddrSelect');
-    
-    document.getElementById('scannerAddModal').style.display = 'flex';
-}
-
-function proceedToScannerAdd() {
-    const selectEl = document.getElementById('scannerAddrSelect');
-    if (!selectEl || !selectEl.value) {
-        showToast('⚠️ База адресов пуста! Сначала добавьте адрес установки.');
-        return;
-    }
-    const addressId = parseInt(selectEl.value);
-    const serial = document.getElementById('scannedSerialVal').value;
-    
-    closeAllModals();
-    
-    // Open the standard add machine modal
-    openAddMachineModal(addressId);
-    
-    // Pre-fill the Serial Number with the scanned code
-    document.getElementById('addMachSerial').value = serial;
-}
-
-// Global callback for Kodular to call when scanning completes
-window.receiveBarcode = function(barcode) {
-    handleBarcodeScanned(barcode);
-};
-
-window.triggerBarcodeScan = triggerBarcodeScan;
-window.stopCameraScanner = stopCameraScanner;
-window.proceedToScannerAdd = proceedToScannerAdd;

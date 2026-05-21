@@ -19,9 +19,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-    <!-- Web-Based Barcode Scanner Library -->
-    <script src="https://unpkg.com/html5-qrcode"></script>
-
     <!-- PWA Manifest Link -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0056b3">
@@ -50,9 +47,6 @@
             <span class="logo-text">Сервис Машин</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <button onclick="triggerBarcodeScan()" style="padding: 6px 12px; font-size: 13px; font-weight: bold; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); color:white; border-radius:var(--radius-md); display:inline-flex; align-items:center; gap:5px; margin: 0; box-shadow: none; height: auto; width: auto; font-family: inherit;">
-                <span>📷</span> Скан
-            </button>
             <span id="netStatus" class="net-status">🟡 Подключение...</span>
         </div>
     </header>
@@ -151,6 +145,15 @@
                 </div>
                 <div id="routeListContainer" class="tag-list"></div>
             </div>
+
+            <div class="card glass-card">
+                <h3>Справочник: Сотрудники</h3>
+                <div class="flex-row search-row">
+                    <input type="text" id="newEmployee" placeholder="ФИО сотрудника">
+                    <button class="btn-square" onclick="addDictItem('employees', 'newEmployee')">+</button>
+                </div>
+                <div id="employeeListContainer" class="tag-list"></div>
+            </div>
         </section>
 
     </main>
@@ -209,6 +212,11 @@
             </div>
             
             <div class="form-group">
+                <label for="addMachEmployee">Ответственный сотрудник</label>
+                <select id="addMachEmployee" class="custom-select"></select>
+            </div>
+            
+            <div class="form-group">
                 <label for="addMachFreq">Кол-во ТО в месяц (0 = по запросу)</label>
                 <input type="number" id="addMachFreq" value="1" min="0" max="10" class="custom-input">
             </div>
@@ -246,6 +254,11 @@
                     <label for="detMachInv">Инвентарный №</label>
                     <input type="text" id="detMachInv">
                 </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="detMachEmployee">Ответственный сотрудник</label>
+                <select id="detMachEmployee" class="custom-select"></select>
             </div>
             
             <div class="form-group">
@@ -287,6 +300,11 @@
                 <label for="modalCounter">Счетчик банкнот (оставьте пустым для автозаполнения)</label>
                 <input type="number" id="modalCounter" placeholder="Введите значение со счетчика" class="custom-input">
             </div>
+
+            <div class="form-group">
+                <label for="modalEmployee">Выполнил работу</label>
+                <select id="modalEmployee" class="custom-select"></select>
+            </div>
             
             <div class="form-group">
                 <label>Выполненные работы</label>
@@ -314,6 +332,11 @@
                 </div>
             </div>
             
+            <div class="form-group">
+                <label for="modalParts">Использованные запчасти (ручной ввод)</label>
+                <textarea id="modalParts" rows="2" placeholder="Например: Ролики захвата - 2 шт, ремень - 1 шт" class="custom-textarea"></textarea>
+            </div>
+
             <div class="form-group">
                 <label for="modalNotes">Заметки / Требуется ремонт</label>
                 <textarea id="modalNotes" rows="2" placeholder="Что нужно заменить?" class="custom-textarea"></textarea>
@@ -367,6 +390,11 @@
                 <label for="editHistCounter">Счетчик банкнот</label>
                 <input type="number" id="editHistCounter" class="custom-input">
             </div>
+
+            <div class="form-group">
+                <label for="editHistEmployee">Выполнил работу</label>
+                <select id="editHistEmployee" class="custom-select"></select>
+            </div>
             
             <div class="form-group">
                 <label>Выполненные работы</label>
@@ -395,44 +423,16 @@
             </div>
             
             <div class="form-group">
+                <label for="editHistParts">Использованные запчасти</label>
+                <textarea id="editHistParts" rows="2" class="custom-textarea"></textarea>
+            </div>
+
+            <div class="form-group">
                 <label for="editHistNotes">Заметки</label>
                 <textarea id="editHistNotes" rows="2" class="custom-textarea"></textarea>
             </div>
             
             <button class="btn-success btn-full" onclick="saveEditHistory()">💾 Сохранить изменения</button>
-        </div>
-    </div>
-
-    <!-- Модальное окно: Камера-Сканер (PWA) -->
-    <div id="cameraScannerModal" class="modal">
-        <div class="modal-backdrop" onclick="stopCameraScanner()"></div>
-        <div class="modal-content" style="max-width: 450px; text-align: center;">
-            <span class="close-btn" onclick="stopCameraScanner()">&times;</span>
-            <h3>Сканирование штрих-кода</h3>
-            <p class="modal-subtitle" style="margin-bottom: 15px;">Поместите штрих-код или серийный номер в рамку</p>
-            <div id="reader" style="width: 100%; max-width: 350px; margin: 0 auto; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); background: #000;"></div>
-            <button class="btn-danger btn-full" style="margin-top: 15px;" onclick="stopCameraScanner()">Отмена</button>
-        </div>
-    </div>
-
-    <!-- Модальное окно: Выбор адреса после сканирования -->
-    <div id="scannerAddModal" class="modal">
-        <div class="modal-backdrop" onclick="closeAllModals()"></div>
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeAllModals()">&times;</span>
-            <h3>Машина не найдена</h3>
-            <p style="font-size:13px; color:var(--text-secondary); margin-bottom:15px; line-height: 1.4;">
-                Машина с S/N <strong id="scannedSerialText" style="color: var(--primary-color);"></strong> не найдена в базе. Выберите адрес установки для добавления машины:
-            </p>
-            
-            <input type="hidden" id="scannedSerialVal">
-            
-            <div class="form-group">
-                <label for="scannerAddrSelect">Адрес установки</label>
-                <select id="scannerAddrSelect" class="custom-select"></select>
-            </div>
-            
-            <button class="btn-success btn-full" onclick="proceedToScannerAdd()">➕ Перейти к добавлению</button>
         </div>
     </div>
 

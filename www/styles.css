@@ -933,7 +933,7 @@ details[open] > summary .details-indicator {
 }
 
 #confirmModal, #promptModal {
-    z-index: 1100;
+    z-index: 2000;
 }
 
 .modal-backdrop {
