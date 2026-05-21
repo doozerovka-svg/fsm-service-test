@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>FSM: Сервисный Учет Счетных Машин</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FSM Сервис">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK (v8.10.1 as requested) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <!-- Web-Based Barcode Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <!-- PWA Manifest Link -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0056b3">
+
+    <!-- App Stylesheet -->
+    <link rel="stylesheet" href="styles.css?v=11.3">
+</head>
+<body>
+
+    <!-- Toast Notification -->
+    <div id="toast"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay">
+        <div class="spinner-container">
+            <div class="spinner" id="loadingSpinner"></div>
+        </div>
+        <h3 id="loadingTitle">Синхронизация с базой...</h3>
+        <p id="loadingText">Пожалуйста, подождите</p>
+    </div>
+
+    <!-- Sticky Header -->
+    <header>
+        <div class="header-logo">
+            <span class="logo-icon">🛠️</span>
+            <span class="logo-text">Сервис Машин</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <button onclick="triggerBarcodeScan()" style="padding: 6px 12px; font-size: 13px; font-weight: bold; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); color:white; border-radius:var(--radius-md); display:inline-flex; align-items:center; gap:5px; margin: 0; box-shadow: none; height: auto; width: auto; font-family: inherit;">
+                <span>📷</span> Скан
+            </button>
+            <span id="netStatus" class="net-status">🟡 Подключение...</span>
+        </div>
+    </header>
+
+    <main class="container">
+        
+        <!-- Вкладка: Чек-лист (Главная) -->
+        <section id="tab-dashboard" class="tab-content active-tab">
+            <div class="section-header">
+                <h2 id="currentMonthTitle">Чек-лист на месяц</h2>
+                <p class="subtitle">Прогресс выполнения планового ТО по маршрутам и точкам.</p>
+            </div>
+            <div id="dashboardList" class="cards-list"></div>
+        </section>
+
+        <!-- Вкладка: Адреса и Машины -->
+        <section id="tab-addresses" class="tab-content">
+            <div class="card glass-card">
+                <h3>📍 Добавить новый адрес</h3>
+                <div class="form-group">
+                    <label for="addrBank">Банк / Клиент</label>
+                    <select id="addrBank" class="custom-select"></select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="addrText">Адрес установки</label>
+                    <div class="flex-row geo-input-row">
+                        <input type="text" id="addrText" placeholder="Например: Кишинев, ул. Пушкина 1">
+                        <button class="icon-btn tooltip" onclick="getCurrentLocation()" title="Определить по GPS">📍</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="addrRoute">Маршрут обслуживания</label>
+                    <select id="addrRoute" class="custom-select"></select>
+                </div>
+                
+                <button class="btn-primary" onclick="addAddress()">+ Сохранить адрес</button>
+            </div>
+            
+            <div class="section-title-row">
+                <h3>База адресов и машин</h3>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 12px;">
+                <input type="text" id="addressTabSearch" placeholder="🔍 Поиск по адресам и машинам (модель, S/N, адрес)..." oninput="filterAddressTab(this)" style="margin-bottom: 0; padding: 10px; font-size: 15px;">
+            </div>
+            
+            <div id="addressList" class="details-list"></div>
+        </section>
+
+        <!-- Вкладка: История -->
+        <section id="tab-history" class="tab-content">
+            <div class="section-header">
+                <h3>История обслуживания</h3>
+                <div class="search-wrapper">
+                    <input type="text" id="historySearch" placeholder="🔍 Поиск (банк, модель, S/N...)" oninput="renderHistory()">
+                </div>
+            </div>
+            <div id="historyList" class="timeline-container"></div>
+        </section>
+
+        <!-- Вкладка: Настройки -->
+        <section id="tab-settings" class="tab-content">
+            <div class="card info-card">
+                <div class="info-card-header">
+                    <span class="info-icon">☁️</span>
+                    <h3>Облачная синхронизация</h3>
+                </div>
+                <p>Приложение работает в режиме <strong>Offline-First</strong>. Вы можете вносить изменения без доступа к интернету. При появлении сети данные автоматически отправятся в базу данных.</p>
+            </div>
+
+            <div class="card glass-card">
+                <h3>Справочник: Модели машин</h3>
+                <div class="flex-row search-row">
+                    <input type="text" id="newModel" placeholder="Например: Magner 150">
+                    <button class="btn-square" onclick="addDictItem('models', 'newModel')">+</button>
+                </div>
+                <div id="modelListContainer" class="tag-list"></div>
+            </div>
+
+            <div class="card glass-card">
+                <h3>Справочник: Банки</h3>
+                <div class="flex-row search-row">
+                    <input type="text" id="newBank" placeholder="Название банка">
+                    <button class="btn-square" onclick="addDictItem('banks', 'newBank')">+</button>
+                </div>
+                <div id="bankListContainer" class="tag-list"></div>
+            </div>
+
+            <div class="card glass-card">
+                <h3>Справочник: Маршруты</h3>
+                <div class="flex-row search-row">
+                    <input type="text" id="newRoute" placeholder="Название маршрута">
+                    <button class="btn-square" onclick="addDictItem('routes', 'newRoute')">+</button>
+                </div>
+                <div id="routeListContainer" class="tag-list"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ================= МОДАЛЬНЫЕ ОКНА ================= -->
+
+    <!-- Модальное окно: Подтверждение -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-backdrop" onclick="closeConfirm()"></div>
+        <div class="modal-content modal-alert">
+            <h3 id="confirmTitle">Подтверждение</h3>
+            <p id="confirmText"></p>
+            <div class="flex-row modal-actions">
+                <button class="btn-outline" onclick="closeConfirm()">Отмена</button>
+                <button class="btn-danger" id="confirmBtn">Да</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Быстрый ввод (Prompt) -->
+    <div id="promptModal" class="modal">
+        <div class="modal-backdrop" onclick="closePrompt()"></div>
+        <div class="modal-content">
+            <h3 id="promptTitle">Редактирование</h3>
+            <input type="text" id="promptInput" class="custom-input">
+            <div class="flex-row modal-actions">
+                <button class="btn-outline" onclick="closePrompt()">Отмена</button>
+                <button class="btn-success" id="promptBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Добавление машины -->
+    <div id="addMachineModal" class="modal">
+        <div class="modal-backdrop" onclick="closeAllModals()"></div>
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeAllModals()">&times;</span>
+            <h3>Добавить машину</h3>
+            <p id="addMachAddressText" class="modal-subtitle"></p>
+            <input type="hidden" id="addMachAddressId">
+            
+            <div class="form-group">
+                <label for="addMachModel">Модель машины</label>
+                <select id="addMachModel" class="custom-select"></select>
+            </div>
+            
+            <div class="flex-row">
+                <div class="form-group">
+                    <label for="addMachSerial">Серийный № (S/N)</label>
+                    <input type="text" id="addMachSerial" placeholder="S/N">
+                </div>
+                <div class="form-group">
+                    <label for="addMachInv">Инвентарный №</label>
+                    <input type="text" id="addMachInv" placeholder="Inv №">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="addMachFreq">Кол-во ТО в месяц (0 = по запросу)</label>
+                <input type="number" id="addMachFreq" value="1" min="0" max="10" class="custom-input">
+            </div>
+            
+            <button class="btn-success btn-full" onclick="saveNewMachine()">➕ Сохранить машину</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Детали и редактирование машины -->
+    <div id="machineDetailsModal" class="modal">
+        <div class="modal-backdrop" onclick="closeAllModals()"></div>
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeAllModals()">&times;</span>
+            <h3 id="detMachTitle">Детали машины</h3>
+            <p id="detMachSubtitle" class="modal-subtitle"></p>
+            
+            <input type="hidden" id="detMachId">
+            
+            <div class="form-group">
+                <label for="detMachAddress">Адрес установки (перемещение)</label>
+                <select id="detMachAddress" class="custom-select"></select>
+            </div>
+
+            <div class="form-group">
+                <label for="detMachModel">Модель машины</label>
+                <select id="detMachModel" class="custom-select"></select>
+            </div>
+            
+            <div class="flex-row">
+                <div class="form-group">
+                    <label for="detMachSerial">Серийный № (S/N)</label>
+                    <input type="text" id="detMachSerial">
+                </div>
+                <div class="form-group">
+                    <label for="detMachInv">Инвентарный №</label>
+                    <input type="text" id="detMachInv">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="detMachFreq">Кол-во ТО в месяц (0 = по запросу)</label>
+                <input type="number" id="detMachFreq" min="0" max="10" class="custom-input">
+            </div>
+            
+            <div class="characteristics-box">
+                <h4>⚙️ Характеристики</h4>
+                <div id="detCharsList" class="chars-list"></div>
+                <div class="flex-row char-input-row">
+                    <input type="text" id="detNewCharText" placeholder="Напр: Прошивка v2.1">
+                    <button class="btn-success btn-square" onclick="addCharacteristic()">+</button>
+                </div>
+            </div>
+
+            <div class="action-buttons-group">
+                <button class="btn-success" onclick="saveEditMachine()">💾 Сохранить изменения</button>
+                <button class="btn-danger" onclick="deleteMachine()">🗑️ Удалить машину</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Выполнение ТО -->
+    <div id="serviceModal" class="modal">
+        <div class="modal-backdrop" onclick="closeAllModals()"></div>
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeAllModals()">&times;</span>
+            <h3 id="modalTitle">Выполнение ТО</h3>
+            <p id="modalSubtitle" class="modal-subtitle"></p>
+            <input type="hidden" id="modalMachineId">
+            
+            <div class="form-group">
+                <label for="modalDate">Дата и время ТО</label>
+                <input type="datetime-local" id="modalDate" class="custom-input">
+            </div>
+
+            <div class="form-group">
+                <label for="modalCounter">Счетчик банкнот (оставьте пустым для автозаполнения)</label>
+                <input type="number" id="modalCounter" placeholder="Введите значение со счетчика" class="custom-input">
+            </div>
+            
+            <div class="form-group">
+                <label>Выполненные работы</label>
+                <div class="checkbox-group">
+                    <label class="custom-checkbox">
+                        <input type="checkbox" class="work-check" value="Очистка тракта">
+                        <span class="checkmark"></span>
+                        <span class="checkbox-label">Очистка тракта</span>
+                    </label>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" class="work-check" value="Чистка датчиков">
+                        <span class="checkmark"></span>
+                        <span class="checkbox-label">Чистка датчиков</span>
+                    </label>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" class="work-check" value="Проверка роликов">
+                        <span class="checkmark"></span>
+                        <span class="checkbox-label">Проверка роликов</span>
+                    </label>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" class="work-check" value="Калибровка">
+                        <span class="checkmark"></span>
+                        <span class="checkbox-label">Калибровка</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="modalNotes">Заметки / Требуется ремонт</label>
+                <textarea id="modalNotes" rows="2" placeholder="Что нужно заменить?" class="custom-textarea"></textarea>
+            </div>
+            
+            <button class="btn-success btn-full" onclick="saveService()">✅ Сохранить ТО</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Редактировать Адрес -->
+    <div id="editAddressModal" class="modal">
+        <div class="modal-backdrop" onclick="closeAllModals()"></div>
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeAllModals()">&times;</span>
+            <h3>Редактировать Адрес</h3>
+            <input type="hidden" id="editAddrId">
+            
+            <div class="form-group">
+                <label for="editAddrBank">Банк / Клиент</label>
+                <select id="editAddrBank" class="custom-select"></select>
+            </div>
+            
+            <div class="form-group">
+                <label for="editAddrText">Адрес</label>
+                <input type="text" id="editAddrText" class="custom-input">
+            </div>
+            
+            <div class="form-group">
+                <label for="editAddrRoute">Маршрут</label>
+                <select id="editAddrRoute" class="custom-select"></select>
+            </div>
+            
+            <button class="btn-success btn-full" onclick="saveEditAddress()">💾 Сохранить изменения</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Редактировать запись ТО -->
+    <div id="editHistoryModal" class="modal">
+        <div class="modal-backdrop" onclick="closeAllModals()"></div>
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeAllModals()">&times;</span>
+            <h3>Редактировать запись ТО</h3>
+            <input type="hidden" id="editHistId">
+            
+            <div class="form-group">
+                <label for="editHistDate">Дата и время ТО</label>
+                <input type="datetime-local" id="editHistDate" class="custom-input">
+            </div>
+
+            <div class="form-group">
+                <label for="editHistCounter">Счетчик банкнот</label>
+                <input type="number" id="editHistCounter" class="custom-input">
+            </div>
+            
+            <div class="form-group">
+                <label>Выполненные работы</label>
+                <div class="checkbox-group">
+                    <label class="custom-checkbox">
+                        <input type="checkbox" class="edit-work-check" value="Очистка тракта">
+                        <span class="checkmark"></span>
+                        <span class="checkbox-label">Очистка тракта</span>
+                    </label>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" class="edit-work-check" value="Чистка датчиков">
+                        <span class="checkmark"></span>
+                        <span class="checkbox-label">Чистка датчиков</span>
+                    </label>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" class="edit-work-check" value="Проверка роликов">
+                        <span class="checkmark"></span>
+                        <span class="checkbox-label">Проверка роликов</span>
+                    </label>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" class="edit-work-check" value="Калибровка">
+                        <span class="checkmark"></span>
+                        <span class="checkbox-label">Калибровка</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="editHistNotes">Заметки</label>
+                <textarea id="editHistNotes" rows="2" class="custom-textarea"></textarea>
+            </div>
+            
+            <button class="btn-success btn-full" onclick="saveEditHistory()">💾 Сохранить изменения</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Камера-Сканер (PWA) -->
+    <div id="cameraScannerModal" class="modal">
+        <div class="modal-backdrop" onclick="stopCameraScanner()"></div>
+        <div class="modal-content" style="max-width: 450px; text-align: center;">
+            <span class="close-btn" onclick="stopCameraScanner()">&times;</span>
+            <h3>Сканирование штрих-кода</h3>
+            <p class="modal-subtitle" style="margin-bottom: 15px;">Поместите штрих-код или серийный номер в рамку</p>
+            <div id="reader" style="width: 100%; max-width: 350px; margin: 0 auto; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); background: #000;"></div>
+            <button class="btn-danger btn-full" style="margin-top: 15px;" onclick="stopCameraScanner()">Отмена</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Выбор адреса после сканирования -->
+    <div id="scannerAddModal" class="modal">
+        <div class="modal-backdrop" onclick="closeAllModals()"></div>
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeAllModals()">&times;</span>
+            <h3>Машина не найдена</h3>
+            <p style="font-size:13px; color:var(--text-secondary); margin-bottom:15px; line-height: 1.4;">
+                Машина с S/N <strong id="scannedSerialText" style="color: var(--primary-color);"></strong> не найдена в базе. Выберите адрес установки для добавления машины:
+            </p>
+            
+            <input type="hidden" id="scannedSerialVal">
+            
+            <div class="form-group">
+                <label for="scannerAddrSelect">Адрес установки</label>
+                <select id="scannerAddrSelect" class="custom-select"></select>
+            </div>
+            
+            <button class="btn-success btn-full" onclick="proceedToScannerAdd()">➕ Перейти к добавлению</button>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <button class="nav-btn active" onclick="switchTab('tab-dashboard', this)">
+            <span class="nav-icon">📋</span>
+            <span class="nav-label">Чек-лист</span>
+        </button>
+        <button class="nav-btn" onclick="switchTab('tab-addresses', this)">
+            <span class="nav-icon">📍</span>
+            <span class="nav-label">Адреса</span>
+        </button>
+        <button class="nav-btn" onclick="switchTab('tab-history', this)">
+            <span class="nav-icon">📅</span>
+            <span class="nav-label">История</span>
+        </button>
+        <button class="nav-btn" onclick="switchTab('tab-settings', this)">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Настройки</span>
+        </button>
+    </nav>
+
+    <!-- App Script logic -->
+    <script src="app.js?v=11.3"></script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+                    .catch(err => console.error('Service Worker registration failed:', err));
+            });
+        }
+    </script>
+</body>
+</html>

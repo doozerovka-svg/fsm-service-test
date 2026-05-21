@@ -1,0 +1,1385 @@
+// =========================================================================
+// FIREBASE CONFIGURATION
+// =========================================================================
+const firebaseConfig = {
+    apiKey: "AIzaSyCeP1EDq1-WjuIdrek6QJJEV9ojVWOvCYQ",
+    authDomain: "fsm-app-5557d.firebaseapp.com",
+    databaseURL: "https://fsm-app-5557d-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "fsm-app-5557d",
+    storageBucket: "fsm-app-5557d.firebasestorage.app",
+    messagingSenderId: "160452263001",
+    appId: "1:160452263001:web:ebf0b64b467d3e1864c548",
+    measurementId: "G-0Q0JLCSNXE"
+};
+
+// =========================================================================
+// APPLICATION STATE
+// =========================================================================
+let db = JSON.parse(localStorage.getItem('fsm_db_v11')) || { 
+    models: ["Magner 150", "Kisan Newton", "SBM SB-2000"], 
+    banks: ["MAIB", "Moldindconbank", "Victoriabank"], 
+    routes: ["Маршрут 1 (Центр)", "Маршрут 2 (Ботаника)"], 
+    addresses: [], 
+    machines: [], 
+    history: [] 
+};
+
+// Initialize app UI on load
+document.addEventListener('DOMContentLoaded', () => {
+    renderAll();
+    initializeFirebase();
+});
+
+// =========================================================================
+// TOAST NOTIFICATIONS
+// =========================================================================
+let toastTimeout;
+function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.innerText = msg;
+    toast.style.display = 'block';
+    // Small timeout to allow element block generation for transition
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => { 
+        toast.classList.remove('show');
+        setTimeout(() => { toast.style.display = 'none'; }, 300);
+    }, 3500);
+}
+
+function showError(title, text) {
+    const spinner = document.getElementById('loadingSpinner');
+    if (spinner) spinner.style.display = 'none';
+    
+    const titleEl = document.getElementById('loadingTitle');
+    titleEl.innerText = title;
+    titleEl.style.color = 'var(--danger-color)';
+    
+    const textEl = document.getElementById('loadingText');
+    textEl.innerHTML = `
+        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); padding: 12px; border-radius: 8px; margin-top: 12px; color: var(--text-primary); text-align: center; max-width: 280px; font-size: 13px;">
+            ${text}
+        </div>
+    `;
+}
+
+// =========================================================================
+// FIREBASE SYNCHRONIZATION
+// =========================================================================
+function initializeFirebase() {
+    try {
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const statusEl = document.getElementById('netStatus');
+        
+        // Listen for connectivity status
+        database.ref(".info/connected").on("value", (snap) => {
+            if (snap.val() === true) {
+                statusEl.innerText = "🟢 В сети";
+                statusEl.className = "net-status";
+                statusEl.style.color = "var(--success-color)";
+                statusEl.style.borderColor = "rgba(16, 185, 129, 0.2)";
+                statusEl.style.backgroundColor = "rgba(16, 185, 129, 0.05)";
+            } else {
+                statusEl.innerText = "🔴 Офлайн";
+                statusEl.className = "net-status";
+                statusEl.style.color = "var(--warning-color)";
+                statusEl.style.borderColor = "rgba(245, 158, 11, 0.2)";
+                statusEl.style.backgroundColor = "rgba(245, 158, 11, 0.05)";
+            }
+        });
+
+        // Set a connection timeout (8s)
+        const timeoutId = setTimeout(() => {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay && overlay.style.display !== 'none') {
+                showError("Ошибка подключения", "База данных Firebase не отвечает. Переход в автономный режим.");
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                }, 3000);
+            }
+        }, 8000);
+
+        // Fetch cloud data and listen for updates
+        database.ref('fsm_data').on('value', (snapshot) => {
+            clearTimeout(timeoutId); 
+            const data = snapshot.val();
+            
+            if (data) {
+                db = data;
+                // Safeguard against missing fields
+                if (!db.models) db.models = [];
+                if (!db.banks) db.banks = [];
+                if (!db.routes) db.routes = [];
+                if (!db.addresses) db.addresses = [];
+                if (!db.machines) db.machines = [];
+                if (!db.history) db.history = [];
+                
+                db.machines.forEach(m => { 
+                    if (!m.characteristics) m.characteristics = []; 
+                });
+                db.history.forEach(h => { 
+                    if (!h.tasks) h.tasks = []; 
+                });
+                
+                localStorage.setItem('fsm_db_v11', JSON.stringify(db));
+                renderAll();
+            }
+            
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.style.display = 'none';
+        }, (error) => {
+            clearTimeout(timeoutId);
+            statusEl.innerText = "🔴 Ошибка БД";
+            statusEl.style.color = "var(--danger-color)";
+            statusEl.style.borderColor = "rgba(239, 68, 68, 0.2)";
+            statusEl.style.backgroundColor = "rgba(239, 68, 68, 0.05)";
+            
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.style.display = 'none';
+            showToast("Ошибка загрузки данных из Firebase!");
+        });
+
+    } catch (err) {
+        console.error("Firebase init failed:", err);
+        const statusEl = document.getElementById('netStatus');
+        statusEl.innerText = "🔴 Ошибка ключей";
+        statusEl.style.color = "var(--danger-color)";
+        statusEl.style.borderColor = "rgba(239, 68, 68, 0.2)";
+        statusEl.style.backgroundColor = "rgba(239, 68, 68, 0.05)";
+        
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+}
+
+function saveData() {
+    localStorage.setItem('fsm_db_v11', JSON.stringify(db));
+    renderAll();
+
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        firebase.database().ref('fsm_data').set(db).catch((error) => {
+            console.log("Синхронизация отложена (офлайн): " + error.message);
+        });
+    }
+}
+
+// =========================================================================
+// GEOLOCATION SERVICES
+// =========================================================================
+function getCurrentLocation() {
+    showToast('⏳ Запрашиваем GPS у телефона...');
+    
+    // Check if running inside Capacitor
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation) {
+        window.Capacitor.Plugins.Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+        }).then((position) => {
+            receiveLocation(position.coords.latitude, position.coords.longitude);
+        }).catch((error) => {
+            showToast('❌ Ошибка GPS Capacitor: ' + error.message);
+        });
+    } else {
+        if (!navigator.geolocation) {
+            showToast('⚠️ Геолокация не поддерживается браузером');
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => receiveLocation(position.coords.latitude, position.coords.longitude),
+            (error) => showToast('❌ Ошибка GPS: ' + error.message),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+}
+
+// Global hook for Capacitor or manual callbacks
+async function receiveLocation(lat, lon) {
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=ru`);
+        const data = await response.json();
+        
+        if (data && data.address) {
+            const city = data.address.city || data.address.town || data.address.village || data.address.county || '';
+            const road = data.address.road || data.address.pedestrian || data.address.suburb || '';
+            const house = data.address.house_number || '';
+            
+            let fullAddress = [];
+            if (city) fullAddress.push(city);
+            if (road) fullAddress.push(road + (house ? ' ' + house : ''));
+            
+            document.getElementById('addrText').value = fullAddress.join(', ') || data.display_name;
+            showToast('✅ Точный адрес определен!');
+        } else {
+            document.getElementById('addrText').value = `${lat}, ${lon}`;
+            showToast('⚠️ Вставлены координаты (улица не найдена)');
+        }
+    } catch (e) {
+        document.getElementById('addrText').value = `${lat}, ${lon}`;
+        showToast('⚠️ Ошибка сети, вставлены координаты');
+    }
+}
+
+// Bind to window to allow access globally
+window.receiveLocation = receiveLocation;
+
+function openMapInKodular(query) {
+    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+    window.open(mapUrl, '_blank');
+}
+
+// =========================================================================
+// CUSTOM DIALOG & MODAL CONTROLLERS
+// =========================================================================
+let confirmStep = 0;
+let confirmCallback = null;
+
+function doubleConfirm(actionText, callback) {
+    confirmStep = 1;
+    confirmCallback = callback;
+    
+    document.getElementById('confirmTitle').innerText = "ШАГ 1 из 2";
+    document.getElementById('confirmTitle').style.color = "var(--primary-color)";
+    document.getElementById('confirmText').innerText = `Вы уверены, что хотите ${actionText}?`;
+    
+    const confirmBtn = document.getElementById('confirmBtn');
+    confirmBtn.innerText = "Да, уверен";
+    confirmBtn.className = "btn-success";
+    document.getElementById('confirmModal').style.display = 'flex';
+}
+
+document.getElementById('confirmBtn').onclick = function() {
+    if (confirmStep === 1) {
+        confirmStep = 2;
+        document.getElementById('confirmTitle').innerText = "ШАГ 2 из 2 (ОКОНЧАТЕЛЬНО)";
+        document.getElementById('confirmTitle').style.color = "var(--danger-color)";
+        document.getElementById('confirmText').innerText = "Вы точно подтверждаете это действие? Отменить его будет невозможно.";
+        
+        const confirmBtn = document.getElementById('confirmBtn');
+        confirmBtn.innerText = "Подтверждаю";
+        confirmBtn.className = "btn-danger";
+    } else if (confirmStep === 2) {
+        document.getElementById('confirmModal').style.display = 'none';
+        if (confirmCallback) confirmCallback();
+        confirmStep = 0;
+        confirmCallback = null;
+    }
+};
+
+function closeConfirm() {
+    document.getElementById('confirmModal').style.display = 'none';
+    confirmStep = 0;
+    confirmCallback = null;
+}
+
+let promptCallback = null;
+
+function customPrompt(title, defaultValue, callback) {
+    document.getElementById('promptTitle').innerText = title;
+    document.getElementById('promptInput').value = defaultValue;
+    promptCallback = callback;
+    document.getElementById('promptModal').style.display = 'flex';
+    document.getElementById('promptInput').focus();
+}
+
+document.getElementById('promptBtn').onclick = function() {
+    const val = document.getElementById('promptInput').value;
+    document.getElementById('promptModal').style.display = 'none';
+    if (promptCallback) promptCallback(val);
+    promptCallback = null;
+};
+
+function closePrompt() {
+    document.getElementById('promptModal').style.display = 'none';
+    promptCallback = null;
+}
+
+function closeAllModals() {
+    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    confirmStep = 0;
+    confirmCallback = null;
+    promptCallback = null;
+}
+
+// Helper to format Date objects for datetime-local input fields
+function getLocalDatetimeString(dateObj) {
+    const d = new Date(dateObj);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+}
+
+// =========================================================================
+// TAB BAR ROUTER
+// =========================================================================
+function switchTab(tabId, btn) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active-tab'));
+    document.getElementById(tabId).classList.add('active-tab');
+    
+    document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+    
+    renderAll();
+}
+
+// =========================================================================
+// DIRECTORY & CATALOG SERVICES
+// =========================================================================
+function addDictItem(type, inputId) {
+    const val = document.getElementById(inputId).value.trim();
+    if (val && !db[type].includes(val)) { 
+        db[type].push(val); 
+        saveData(); 
+        document.getElementById(inputId).value = ''; 
+        showToast('✅ Добавлено в справочник');
+    }
+}
+
+function editDictItem(type, oldVal) {
+    customPrompt("Введите новое значение:", oldVal, (newVal) => {
+        if (newVal !== null && newVal.trim() !== "" && newVal !== oldVal) {
+            doubleConfirm(`ИЗМЕНИТЬ "${oldVal}" на "${newVal}" (это обновит все связанные записи)`, () => {
+                const index = db[type].indexOf(oldVal);
+                if (index !== -1) db[type][index] = newVal.trim();
+                
+                // Cascade updates to associated elements
+                if (type === 'banks') {
+                    db.addresses.forEach(a => { if (a.bank === oldVal) a.bank = newVal.trim(); });
+                } else if (type === 'routes') {
+                    db.addresses.forEach(a => { if (a.route === oldVal) a.route = newVal.trim(); });
+                } else if (type === 'models') {
+                    db.machines.forEach(m => { if (m.model === oldVal) m.model = newVal.trim(); });
+                }
+                
+                saveData();
+                showToast('✅ Справочник обновлен');
+            });
+        }
+    });
+}
+
+function deleteDictItem(type, val) {
+    doubleConfirm(`УДАЛИТЬ "${val}" из справочника`, () => {
+        db[type] = db[type].filter(x => x !== val);
+        saveData();
+        showToast('🗑️ Удалено из справочника');
+    });
+}
+
+// =========================================================================
+// ADDRESS MANAGEMENT
+// =========================================================================
+function addAddress() {
+    const bank = document.getElementById('addrBank').value;
+    const address = document.getElementById('addrText').value.trim();
+    const route = document.getElementById('addrRoute').value;
+    
+    if (!bank || !address || !route) return showToast('⚠️ Заполните все поля!');
+    
+    db.addresses.push({ id: Date.now(), bank, address, route });
+    saveData();
+    document.getElementById('addrText').value = '';
+    showToast('✅ Адрес добавлен!');
+}
+
+function openEditAddress(id) {
+    const a = db.addresses.find(x => x.id === id);
+    if (!a) return;
+    
+    document.getElementById('editAddrId').value = id;
+    
+    // Refresh dropdowns in edit address modal
+    populateDropdown('editAddrBank', db.banks, a.bank);
+    populateDropdown('editAddrRoute', db.routes, a.route);
+    
+    document.getElementById('editAddrText').value = a.address;
+    document.getElementById('editAddressModal').style.display = 'flex';
+}
+
+function saveEditAddress() {
+    doubleConfirm('СОХРАНИТЬ ИЗМЕНЕНИЯ в адресе', () => {
+        const id = parseInt(document.getElementById('editAddrId').value);
+        const a = db.addresses.find(x => x.id === id);
+        if (a) {
+            a.bank = document.getElementById('editAddrBank').value;
+            a.address = document.getElementById('editAddrText').value.trim();
+            a.route = document.getElementById('editAddrRoute').value;
+            saveData();
+            closeAllModals();
+            showToast('✅ Адрес обновлен!');
+        }
+    });
+}
+
+function deleteAddress(id) {
+    doubleConfirm('УДАЛИТЬ этот адрес', () => {
+        db.addresses = db.addresses.filter(x => x.id !== id);
+        saveData();
+        showToast('🗑️ Адрес удален');
+    });
+}
+
+// =========================================================================
+// MACHINE MANAGEMENT
+// =========================================================================
+function openAddMachineModal(addressId) {
+    const a = db.addresses.find(x => x.id === addressId);
+    if (!a) return;
+    
+    document.getElementById('addMachAddressId').value = addressId;
+    document.getElementById('addMachAddressText').innerText = `📍 ${a.bank}, ${a.address}`;
+    
+    populateDropdown('addMachModel', db.models);
+    
+    document.getElementById('addMachSerial').value = '';
+    document.getElementById('addMachInv').value = '';
+    document.getElementById('addMachFreq').value = '1';
+    
+    document.getElementById('addMachineModal').style.display = 'flex';
+}
+
+function saveNewMachine() {
+    const addressId = document.getElementById('addMachAddressId').value;
+    const model = document.getElementById('addMachModel').value;
+    const serial = document.getElementById('addMachSerial').value.trim();
+    const inv = document.getElementById('addMachInv').value.trim();
+    const freq = parseInt(document.getElementById('addMachFreq').value);
+
+    if (!model || !serial) return showToast('⚠️ Заполните Модель и S/N!');
+    
+    db.machines.push({ 
+        id: Date.now(), 
+        addressId: parseInt(addressId), 
+        model, 
+        serial, 
+        inv, 
+        freq, 
+        characteristics: [] 
+    });
+    
+    saveData();
+    closeAllModals();
+    showToast('✅ Машина добавлена!');
+}
+
+function openMachineDetails(machineId) {
+    const m = db.machines.find(x => x.id === machineId);
+    if (!m) return;
+    const a = db.addresses.find(x => x.id === m.addressId);
+    
+    document.getElementById('detMachId').value = m.id;
+    document.getElementById('detMachTitle').innerText = `📠 ${m.model}`;
+    document.getElementById('detMachSubtitle').innerText = `📍 ${a ? a.bank + ', ' + a.address : 'Адрес удален'}`;
+    
+    // Populate dropdowns in details modal
+    populateAddressDropdown('detMachAddress', m.addressId);
+    populateDropdown('detMachModel', db.models, m.model);
+    
+    document.getElementById('detMachSerial').value = m.serial;
+    document.getElementById('detMachInv').value = m.inv || '';
+    document.getElementById('detMachFreq').value = m.freq;
+    
+    renderCharacteristicsList(m.id);
+    document.getElementById('machineDetailsModal').style.display = 'flex';
+}
+
+function saveEditMachine() {
+    doubleConfirm('СОХРАНИТЬ ИЗМЕНЕНИЯ в данных машины', () => {
+        const id = parseInt(document.getElementById('detMachId').value);
+        const m = db.machines.find(x => x.id === id);
+        if (!m) return;
+        
+        const newSerial = document.getElementById('detMachSerial').value.trim();
+        const newAddressId = parseInt(document.getElementById('detMachAddress').value);
+
+        // Check if Serial was updated - Add log
+        if (m.serial !== newSerial) {
+            db.history.forEach(h => {
+                if (h.machineId === m.id && !h.machineSerial) {
+                    h.machineSerial = m.serial;
+                }
+            });
+
+            db.history.unshift({
+                id: Date.now(),
+                machineId: m.id,
+                machineSerial: newSerial,
+                date: new Date().toISOString(),
+                counter: "",
+                tasks: ["Замена системной платы / Смена S/N"],
+                notes: `Серийный номер изменен с [${m.serial}] на [${newSerial}]`
+            });
+        }
+
+        // Check if location was updated - Add log
+        if (m.addressId !== newAddressId) {
+            const oldAddr = db.addresses.find(a => a.id === m.addressId);
+            const newAddr = db.addresses.find(a => a.id === newAddressId);
+            const oldAddrText = oldAddr ? `${oldAddr.bank}, ${oldAddr.address}` : 'Неизвестно';
+            const newAddrText = newAddr ? `${newAddr.bank}, ${newAddr.address}` : 'Неизвестно';
+            
+            db.history.unshift({
+                id: Date.now() + 1, 
+                machineId: m.id,
+                machineSerial: newSerial,
+                date: new Date().toISOString(),
+                counter: "",
+                tasks: ["Перемещение оборудования"],
+                notes: `Машина перемещена:\nОткуда: ${oldAddrText}\nКуда: ${newAddrText}`
+            });
+        }
+
+        m.addressId = newAddressId;
+        m.model = document.getElementById('detMachModel').value;
+        m.serial = newSerial;
+        m.inv = document.getElementById('detMachInv').value.trim();
+        m.freq = parseInt(document.getElementById('detMachFreq').value);
+        
+        saveData();
+        closeAllModals();
+        showToast('✅ Данные машины обновлены!');
+    });
+}
+
+function deleteMachine() {
+    doubleConfirm('УДАЛИТЬ эту машину', () => {
+        const id = parseInt(document.getElementById('detMachId').value);
+        db.machines = db.machines.filter(x => x.id !== id);
+        saveData();
+        closeAllModals();
+        showToast('🗑️ Машина удалена');
+    });
+}
+
+// Characteristics lists
+function renderCharacteristicsList(machineId) {
+    const m = db.machines.find(x => x.id === machineId);
+    const list = document.getElementById('detCharsList');
+    if (!m) return;
+    
+    if (!m.characteristics || m.characteristics.length === 0) {
+        list.innerHTML = '<p style="font-size:12px; color:var(--text-muted); margin:4px 0;">Характеристики пока не добавлены.</p>';
+        return;
+    }
+    
+    list.innerHTML = m.characteristics.map(c => `
+        <div class="list-item" style="background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 6px;">
+            <span style="font-size: 13px;">${c.text}</span>
+            <div class="actions">
+                <button class="btn-outline" style="padding: 4px 8px; font-size:11px;" onclick="editCharacteristic(${m.id}, ${c.id})">✏️</button>
+                <button class="btn-danger" style="padding: 4px 8px; font-size:11px;" onclick="deleteCharacteristic(${m.id}, ${c.id})">🗑️</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addCharacteristic() {
+    const machineId = parseInt(document.getElementById('detMachId').value);
+    const text = document.getElementById('detNewCharText').value.trim();
+    if (!text) return;
+    
+    const m = db.machines.find(x => x.id === machineId);
+    if (m) {
+        if (!m.characteristics) m.characteristics = [];
+        m.characteristics.push({ id: Date.now(), text });
+        document.getElementById('detNewCharText').value = '';
+        saveData();
+        renderCharacteristicsList(machineId);
+        showToast('✅ Характеристика добавлена');
+    }
+}
+
+function editCharacteristic(machineId, charId) {
+    const m = db.machines.find(x => x.id === machineId);
+    if (!m) return;
+    const c = m.characteristics.find(x => x.id === charId);
+    if (!c) return;
+    
+    customPrompt("Редактировать характеристику:", c.text, (newText) => {
+        if (newText !== null && newText.trim() !== "" && newText !== c.text) {
+            doubleConfirm('ИЗМЕНИТЬ эту характеристику', () => {
+                c.text = newText.trim();
+                saveData();
+                renderCharacteristicsList(machineId);
+                showToast('✅ Характеристика обновлена');
+            });
+        }
+    });
+}
+
+function deleteCharacteristic(machineId, charId) {
+    doubleConfirm('УДАЛИТЬ эту характеристику', () => {
+        const m = db.machines.find(x => x.id === machineId);
+        if (m) {
+            m.characteristics = m.characteristics.filter(x => x.id !== charId);
+            saveData();
+            renderCharacteristicsList(machineId);
+            showToast('🗑️ Характеристика удалена');
+        }
+    });
+}
+
+// =========================================================================
+// SERVICE & MAINTENANCE REGISTRATION
+// =========================================================================
+function isCurrentMonth(dateString) {
+    const d = new Date(dateString);
+    const now = new Date();
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+}
+
+function openServiceModal(machineId) {
+    const m = db.machines.find(x => x.id === machineId);
+    if (!m) return;
+    const a = db.addresses.find(x => x.id === m.addressId);
+    if (!a) return;
+    
+    document.getElementById('modalMachineId').value = machineId;
+    document.getElementById('modalTitle').innerText = `ТО: ${m.model}`;
+    document.getElementById('modalSubtitle').innerText = `${a.bank}, ${a.address}\nS/N: ${m.serial}`;
+    
+    document.getElementById('modalDate').value = getLocalDatetimeString(new Date());
+    document.getElementById('modalCounter').value = '';
+    document.getElementById('modalNotes').value = '';
+    document.querySelectorAll('.work-check').forEach(cb => cb.checked = false);
+    
+    document.getElementById('serviceModal').style.display = 'flex';
+}
+
+function saveService() {
+    const machineId = parseInt(document.getElementById('modalMachineId').value);
+    const dateVal = document.getElementById('modalDate').value;
+    let counter = document.getElementById('modalCounter').value.trim();
+    const notes = document.getElementById('modalNotes').value.trim();
+    let tasks = [];
+    document.querySelectorAll('.work-check:checked').forEach(cb => tasks.push(cb.value));
+
+    const m = db.machines.find(x => x.id === machineId);
+    if (!m) return;
+
+    // Auto-Counter Filling logic (recovers last entered number in history)
+    if (!counter || counter === '') {
+        const sortedHistory = [...db.history].sort((a, b) => new Date(b.date) - new Date(a.date));
+        const prevRecord = sortedHistory.find(h => h.machineId === machineId && h.counter && h.counter.trim() !== '');
+        if (prevRecord) {
+            counter = prevRecord.counter;
+        }
+    }
+
+    const isoDate = new Date(dateVal).toISOString();
+
+    db.history.unshift({ 
+        id: Date.now(), 
+        machineId, 
+        machineSerial: m.serial, 
+        date: isoDate, 
+        counter, 
+        tasks, 
+        notes 
+    });
+    
+    saveData();
+    closeAllModals();
+    showToast('✅ ТО успешно сохранено!');
+}
+
+function openEditHistory(id) {
+    const h = db.history.find(x => x.id === id);
+    if (!h) return;
+    
+    document.getElementById('editHistId').value = id;
+    document.getElementById('editHistDate').value = getLocalDatetimeString(h.date);
+    document.getElementById('editHistCounter').value = h.counter || '';
+    document.getElementById('editHistNotes').value = h.notes || '';
+    
+    document.querySelectorAll('.edit-work-check').forEach(cb => {
+        cb.checked = h.tasks ? h.tasks.includes(cb.value) : false;
+    });
+    
+    document.getElementById('editHistoryModal').style.display = 'flex';
+}
+
+function saveEditHistory() {
+    doubleConfirm('СОХРАНИТЬ ИЗМЕНЕНИЯ в записи истории', () => {
+        const id = parseInt(document.getElementById('editHistId').value);
+        const h = db.history.find(x => x.id === id);
+        if (h) {
+            h.date = new Date(document.getElementById('editHistDate').value).toISOString();
+            h.counter = document.getElementById('editHistCounter').value.trim();
+            h.notes = document.getElementById('editHistNotes').value.trim();
+            
+            let tasks = [];
+            document.querySelectorAll('.edit-work-check:checked').forEach(cb => tasks.push(cb.value));
+            h.tasks = tasks;
+            
+            saveData();
+            closeAllModals();
+            showToast('✅ Запись истории обновлена!');
+        }
+    });
+}
+
+function deleteHistory(id) {
+    doubleConfirm('УДАЛИТЬ эту запись обслуживания', () => {
+        db.history = db.history.filter(x => x.id !== id);
+        saveData();
+        showToast('🗑️ Запись истории удалена');
+    });
+}
+
+// =========================================================================
+// DATA POPULATION HELPERS
+// =========================================================================
+function populateDropdown(selectId, itemsArray, selectedValue = '') {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    select.innerHTML = itemsArray.map(item => `
+        <option value="${item}" ${item === selectedValue ? 'selected' : ''}>${item}</option>
+    `).join('');
+}
+
+function populateAddressDropdown(selectId, selectedId = 0) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    select.innerHTML = db.addresses.map(a => `
+        <option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${a.bank} - ${a.address}</option>
+    `).join('');
+}
+
+// =========================================================================
+// RENDER CONTEXT CONTROLLERS
+// =========================================================================
+function renderAll() {
+    // Populate dynamic drop-downs in all forms
+    populateDropdown('addrBank', db.banks);
+    populateDropdown('addrRoute', db.routes);
+    
+    // Check if active tabs need updates
+    const activeTab = document.querySelector('.tab-content.active-tab');
+    if (!activeTab) return;
+    
+    const id = activeTab.id;
+    if (id === 'tab-dashboard') {
+        renderDashboard();
+    } else if (id === 'tab-addresses') {
+        renderAddresses();
+    } else if (id === 'tab-history') {
+        renderHistory();
+    } else if (id === 'tab-settings') {
+        renderSettings();
+    }
+}
+
+// Render Settings directories tags list
+function renderSettings() {
+    renderDictContainer('modelListContainer', 'models');
+    renderDictContainer('bankListContainer', 'banks');
+    renderDictContainer('routeListContainer', 'routes');
+}
+
+function renderDictContainer(containerId, type) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const list = db[type] || [];
+    if (list.length === 0) {
+        container.innerHTML = '<span style="font-size:13px; color:var(--text-muted)">Справочник пуст</span>';
+        return;
+    }
+    
+    container.innerHTML = list.map(item => `
+        <div class="dict-tag">
+            <span class="dict-tag-text">${item}</span>
+            <div class="dict-tag-actions">
+                <button class="dict-tag-btn" onclick="editDictItem('${type}', '${item}')" title="Редактировать">✏️</button>
+                <button class="dict-tag-btn del" onclick="deleteDictItem('${type}', '${item}')" title="Удалить">🗑️</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Render Dashboard Check-list
+function renderDashboard() {
+    const container = document.getElementById('dashboardList');
+    if (!container) return;
+    
+    // Set Month Header text (Russian Months)
+    const months = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+    const now = new Date();
+    document.getElementById('currentMonthTitle').innerText = `Чек-лист: ${months[now.getMonth()]} ${now.getFullYear()}`;
+    
+    if (db.addresses.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                <p style="font-size: 15px; margin-bottom: 12px;">База адресов пока пуста.</p>
+                <p style="font-size: 13px; color: var(--text-muted)">Перейдите во вкладку <strong>📍 Адреса</strong>, чтобы добавить вашу первую локацию.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    
+    // Group addresses by routes
+    db.routes.forEach((route, routeIndex) => {
+        const routeAddresses = db.addresses.filter(a => a.route === route);
+        if (routeAddresses.length === 0) return;
+        
+        let totalTarget = 0;
+        let totalCompleted = 0;
+        let routeHtml = '';
+        
+        routeAddresses.forEach(addr => {
+            const addrMachines = db.machines.filter(m => m.addressId === addr.id);
+            if (addrMachines.length === 0) return;
+            
+            let addrHtml = '';
+            let addrTarget = 0;
+            let addrCompleted = 0;
+            
+            addrMachines.forEach(mach => {
+                // Find all service records for this machine in the current month
+                const thisMonthServices = db.history.filter(h => h.machineId === mach.id && isCurrentMonth(h.date));
+                const completedCount = thisMonthServices.length;
+                
+                // Add to calculations
+                const targetCount = mach.freq;
+                addrTarget += targetCount;
+                addrCompleted += Math.min(completedCount, targetCount);
+                
+                totalTarget += targetCount;
+                totalCompleted += Math.min(completedCount, targetCount); // cap at target limit
+                
+                let badgeClass = 'pending';
+                let badgeText = '';
+                
+                if (targetCount === 0) {
+                    // Service by request
+                    if (completedCount > 0) {
+                        badgeClass = 'done';
+                        badgeText = `Выполнено (${completedCount})`;
+                    } else {
+                        badgeClass = 'info';
+                        badgeText = 'По запросу';
+                    }
+                } else {
+                    if (completedCount >= targetCount) {
+                        badgeClass = 'done';
+                        badgeText = 'Выполнено';
+                    } else if (completedCount > 0) {
+                        badgeClass = 'pending';
+                        badgeText = `В процессе: ${completedCount}/${targetCount}`;
+                    } else {
+                        // Check if overdue
+                        const machineHistory = db.history.filter(h => h.machineId === mach.id);
+                        if (machineHistory.length > 0) {
+                            const lastService = new Date(machineHistory[0].date);
+                            const diffDays = Math.ceil(Math.abs(now - lastService) / (1000 * 60 * 60 * 24));
+                            if (diffDays > 35) {
+                                badgeClass = 'overdue';
+                                badgeText = 'Просрочено';
+                            } else {
+                                badgeClass = 'pending';
+                                badgeText = 'Ожидает ТО';
+                            }
+                        } else {
+                            badgeClass = 'overdue';
+                            badgeText = 'Требует ТО';
+                        }
+                    }
+                }
+                
+                addrHtml += `
+                    <div class="list-item clickable" onclick="openServiceModal(${mach.id})" data-machine-text="${mach.model.toLowerCase()} ${mach.serial.toLowerCase()} ${mach.inv ? mach.inv.toLowerCase() : ''}">
+                        <div class="list-item-main">
+                            <span class="list-item-title">${mach.model}</span>
+                            <span class="list-item-subtitle">S/N: ${mach.serial} ${mach.inv ? '| Inv: ' + mach.inv : ''}</span>
+                        </div>
+                        <span class="badge ${badgeClass}">${badgeText}</span>
+                    </div>
+                `;
+            });
+            
+            // Calculate address badge status
+            let addrBadgeClass = 'pending';
+            let addrBadgeText = '';
+            if (addrTarget === 0) {
+                if (addrCompleted > 0) {
+                    addrBadgeClass = 'done';
+                    addrBadgeText = `Сделано: ${addrCompleted}`;
+                } else {
+                    addrBadgeClass = 'info';
+                    addrBadgeText = 'По запросу';
+                }
+            } else {
+                addrBadgeText = `${addrCompleted}/${addrTarget}`;
+                if (addrCompleted >= addrTarget) {
+                    addrBadgeClass = 'done';
+                } else {
+                    addrBadgeClass = 'pending';
+                }
+            }
+            
+            routeHtml += `
+                <details class="dash-address" data-address-text="${addr.bank.toLowerCase()} ${addr.address.toLowerCase()}">
+                    <summary>
+                        <span>📍 ${addr.bank}, ${addr.address}</span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="badge ${addrBadgeClass}">${addrBadgeText}</span>
+                            <span class="details-indicator">▼</span>
+                        </div>
+                    </summary>
+                    <div class="details-content dash-address-content">
+                        <button class="btn-outline" style="width:100%; margin-bottom:8px; font-size:12px; padding:6px 12px;" onclick="openMapInKodular('${addr.bank}, ${addr.address}')">🗺️ Показать на карте</button>
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <input type="text" placeholder="🔍 Поиск по адресу (модель, S/N)..." class="address-search-input" oninput="applyAddressSearch(this)" style="margin-bottom: 0; padding: 8px 10px; font-size: 13px;">
+                        </div>
+                        <div class="address-machines-list">
+                            ${addrHtml}
+                        </div>
+                    </div>
+                </details>
+            `;
+        });
+        
+        // Compute progress bar percentage
+        const percent = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : (totalCompleted > 0 ? 100 : 0);
+        
+        html += `
+            <details class="dash-route" ${routeIndex === 0 ? 'open' : ''}>
+                <summary>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:4px; padding-right:12px;">
+                        <span>🚗 ${route}</span>
+                        <div class="progress-bar-container">
+                            <div class="progress-info">
+                                <span>Прогресс: ${percent}%</span>
+                                <span>${totalCompleted}/${totalTarget} ТО</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width: ${percent}%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="details-indicator">▼</span>
+                </summary>
+                <div class="details-content">
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <input type="text" placeholder="🔍 Поиск по маршруту (модель, S/N, адрес)..." class="route-search-input" oninput="applyRouteSearch(this)" style="margin-bottom: 0; padding: 8px 12px; font-size: 14px;">
+                    </div>
+                    ${routeHtml}
+                </div>
+            </details>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Render Database of addresses and machines
+function renderAddresses() {
+    const container = document.getElementById('addressList');
+    if (!container) return;
+    
+    if (db.addresses.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding: 20px 0; color:var(--text-muted)">Список адресов пуст.</p>';
+        return;
+    }
+    
+    container.innerHTML = db.addresses.map(a => {
+        const addrMachines = db.machines.filter(m => m.addressId === a.id);
+        
+        let machHtml = '';
+        if (addrMachines.length === 0) {
+            machHtml = '<p style="font-size:11px; color:var(--text-muted); text-align:center; margin:8px 0;">Оборудование отсутствует.</p>';
+        } else {
+            machHtml = addrMachines.map(m => `
+                <div class="machine-pill" onclick="openMachineDetails(${m.id})" data-machine-text="${m.model.toLowerCase()} ${m.serial.toLowerCase()} ${m.inv ? m.inv.toLowerCase() : ''}">
+                    <div class="machine-pill-info">
+                        <span class="machine-model">${m.model}</span>
+                        <span class="machine-sn">S/N: ${m.serial} ${m.inv ? '| Inv: ' + m.inv : ''}</span>
+                    </div>
+                    <span class="badge info" style="padding: 2px 8px; font-size:10px;">${m.freq} ТО/мес</span>
+                </div>
+            `).join('');
+        }
+        
+        return `
+            <div class="card address-card" data-address-text="${a.bank.toLowerCase()} ${a.address.toLowerCase()} ${a.route.toLowerCase()}">
+                <div class="address-card-header">
+                    <div>
+                        <div class="address-title">${a.bank}</div>
+                        <div class="address-meta">
+                            <span>📍 ${a.address}</span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Маршрут: ${a.route}</div>
+                    </div>
+                    <div class="actions">
+                        <button class="btn-outline" style="padding:4px 8px;" onclick="openEditAddress(${a.id})" title="Редактировать адрес">✏️</button>
+                        <button class="btn-danger" style="padding:4px 8px;" onclick="deleteAddress(${a.id})" title="Удалить адрес">🗑️</button>
+                    </div>
+                </div>
+                
+                <div class="machines-group">
+                    <div class="machines-group-title">Оборудование на точке</div>
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <input type="text" placeholder="🔍 Поиск оборудования (модель, S/N)..." class="address-card-machine-search" oninput="filterAddressCardMachines(this)" style="margin-bottom: 0; padding: 6px 10px; font-size: 13px;">
+                    </div>
+                    <div class="machines-card-list">
+                        ${machHtml}
+                    </div>
+                    <button class="btn-primary" style="padding: 8px; font-size:12px; margin-top:8px; width:100%;" onclick="openAddMachineModal(${a.id})">+ Добавить машину</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Apply search filter if there is active text in search input
+    const searchInput = document.getElementById('addressTabSearch');
+    if (searchInput && searchInput.value.trim() !== '') {
+        filterAddressTab(searchInput);
+    }
+}
+
+// Render History
+function renderHistory() {
+    const container = document.getElementById('historyList');
+    const searchVal = document.getElementById('historySearch').value.toLowerCase().trim();
+    if (!container) return;
+    
+    let filtered = db.history;
+    
+    // Search filter logic
+    if (searchVal) {
+        filtered = db.history.filter(h => {
+            const m = db.machines.find(x => x.id === h.machineId);
+            const a = m ? db.addresses.find(x => x.id === m.addressId) : null;
+            
+            const model = m ? m.model.toLowerCase() : '';
+            const serial = h.machineSerial ? h.machineSerial.toLowerCase() : (m ? m.serial.toLowerCase() : '');
+            const bank = a ? a.bank.toLowerCase() : '';
+            const addrText = a ? a.address.toLowerCase() : '';
+            const notes = h.notes ? h.notes.toLowerCase() : '';
+            const taskStr = h.tasks ? h.tasks.join(' ').toLowerCase() : '';
+            
+            return model.includes(searchVal) || 
+                   serial.includes(searchVal) || 
+                   bank.includes(searchVal) || 
+                   addrText.includes(searchVal) || 
+                   notes.includes(searchVal) ||
+                   taskStr.includes(searchVal);
+        });
+    }
+    
+    if (filtered.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding: 20px 0; color:var(--text-muted)">История обслуживания пуста.</p>';
+        return;
+    }
+    
+    // Sort chronological descending
+    const sorted = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    let currentDayStr = '';
+    let html = '';
+    
+    sorted.forEach(h => {
+        const dateObj = new Date(h.date);
+        
+        // Format Day string (Russian)
+        const days = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+        const months = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+        const dayStr = `${days[dateObj.getDay()]}, ${dateObj.getDate()} ${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+        
+        if (dayStr !== currentDayStr) {
+            currentDayStr = dayStr;
+            html += `<div class="day-header">${currentDayStr}</div>`;
+        }
+        
+        const m = db.machines.find(x => x.id === h.machineId);
+        const a = m ? db.addresses.find(x => x.id === m.addressId) : null;
+        const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        
+        const serial = h.machineSerial || (m ? m.serial : 'Неизвестно');
+        const model = m ? m.model : 'Удаленная модель';
+        const clientText = a ? `${a.bank}, ${a.address}` : 'Адрес удален';
+        
+        let tasksHtml = '';
+        if (h.tasks && h.tasks.length > 0) {
+            tasksHtml = `
+                <div class="timeline-tasks">
+                    ${h.tasks.map(t => `<span class="task-tag">${t}</span>`).join('')}
+                </div>
+            `;
+        }
+        
+        html += `
+            <div class="timeline-item">
+                <div class="timeline-header">
+                    <div class="timeline-title">${model}</div>
+                    <div class="timeline-time">${timeStr}</div>
+                </div>
+                
+                <div class="timeline-body">
+                    <div class="timeline-meta-row">
+                        <div class="timeline-meta-item">S/N: <strong>${serial}</strong></div>
+                        ${h.counter ? `<div class="timeline-meta-item">Счетчик: <strong>${h.counter}</strong></div>` : ''}
+                    </div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">📍 ${clientText}</div>
+                    
+                    ${tasksHtml}
+                    ${h.notes ? `<div class="timeline-notes">${h.notes}</div>` : ''}
+                </div>
+                
+                <div class="actions" style="margin-top: 12px; display:flex; justify-content:flex-end;">
+                    <button class="btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="openEditHistory(${h.id})">✏️</button>
+                    <button class="btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteHistory(${h.id})">🗑️</button>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// =========================================================================
+// SEARCH & FILTER FUNCTIONALITY FOR DASHBOARD (CHECK-LIST)
+// =========================================================================
+function applyRouteSearch(routeInput) {
+    const routeVal = routeInput.value.toLowerCase().trim();
+    const routeDetails = routeInput.closest('.details-content');
+    if (!routeDetails) return;
+    
+    const addresses = routeDetails.querySelectorAll('.dash-address');
+    
+    addresses.forEach(addrEl => {
+        const addrText = addrEl.getAttribute('data-address-text') || '';
+        const addrInput = addrEl.querySelector('.address-search-input');
+        const addrVal = addrInput ? addrInput.value.toLowerCase().trim() : '';
+        
+        const machineItems = addrEl.querySelectorAll('.address-machines-list .list-item');
+        let visibleMachinesCount = 0;
+        
+        machineItems.forEach(item => {
+            const machText = item.getAttribute('data-machine-text') || '';
+            
+            // Check matches: route input matches address or machine; and address input matches machine
+            const routeMatches = routeVal === '' || addrText.includes(routeVal) || machText.includes(routeVal);
+            const addrMatches = addrVal === '' || machText.includes(addrVal);
+            
+            if (routeMatches && addrMatches) {
+                item.style.display = 'flex';
+                visibleMachinesCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        // Hide the entire address card if no machines match
+        if (visibleMachinesCount > 0) {
+            addrEl.style.display = 'block';
+        } else {
+            addrEl.style.display = 'none';
+        }
+    });
+}
+
+function applyAddressSearch(addrInput) {
+    const addrVal = addrInput.value.toLowerCase().trim();
+    const addrEl = addrInput.closest('.dash-address');
+    if (!addrEl) return;
+    
+    const routeDetails = addrEl.closest('.details-content');
+    const routeInput = routeDetails ? routeDetails.querySelector('.route-search-input') : null;
+    const routeVal = routeInput ? routeInput.value.toLowerCase().trim() : '';
+    
+    const addrText = addrEl.getAttribute('data-address-text') || '';
+    const machineItems = addrEl.querySelectorAll('.address-machines-list .list-item');
+    let visibleMachinesCount = 0;
+    
+    machineItems.forEach(item => {
+        const machText = item.getAttribute('data-machine-text') || '';
+        
+        // Check matches
+        const routeMatches = routeVal === '' || addrText.includes(routeVal) || machText.includes(routeVal);
+        const addrMatches = addrVal === '' || machText.includes(addrVal);
+        
+        if (routeMatches && addrMatches) {
+            item.style.display = 'flex';
+            visibleMachinesCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    
+    // Hide the entire address card if no machines match
+    if (visibleMachinesCount > 0) {
+        addrEl.style.display = 'block';
+    } else {
+        addrEl.style.display = 'none';
+    }
+}
+
+function filterAddressTab(inputEl) {
+    const val = inputEl.value.toLowerCase().trim();
+    const cards = document.querySelectorAll('#addressList .address-card');
+    
+    cards.forEach(card => {
+        const addrText = card.getAttribute('data-address-text') || '';
+        const machines = card.querySelectorAll('.machine-pill');
+        let cardHasMatch = addrText.includes(val);
+        let matchingMachinesCount = 0;
+        
+        machines.forEach(mach => {
+            const machText = mach.getAttribute('data-machine-text') || '';
+            const machMatches = machText.includes(val);
+            
+            if (val === '' || machMatches || addrText.includes(val)) {
+                mach.style.display = 'flex';
+                matchingMachinesCount++;
+            } else {
+                mach.style.display = 'none';
+            }
+        });
+        
+        // Show the card if the card address info matches OR if at least one machine matches
+        if (val === '' || cardHasMatch || matchingMachinesCount > 0) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function filterAddressCardMachines(inputEl) {
+    const val = inputEl.value.toLowerCase().trim();
+    const machinesGroup = inputEl.closest('.machines-group');
+    if (!machinesGroup) return;
+    
+    const machines = machinesGroup.querySelectorAll('.machine-pill');
+    machines.forEach(mach => {
+        const machText = mach.getAttribute('data-machine-text') || '';
+        if (val === '' || machText.includes(val)) {
+            mach.style.display = 'flex';
+        } else {
+            mach.style.display = 'none';
+        }
+    });
+}
+
+// Expose functions globally for HTML inline handlers
+window.applyRouteSearch = applyRouteSearch;
+window.applyAddressSearch = applyAddressSearch;
+window.filterAddressTab = filterAddressTab;
+window.filterAddressCardMachines = filterAddressCardMachines;
+
+// =========================================================================
+// BARCODE / QR SCANNER SERVICE (PWA WEB-BASED CAMERA SCANNER)
+// =========================================================================
+let html5QrScanner = null;
+
+function triggerBarcodeScan() {
+    showToast('⏳ Инициализация камеры...');
+    document.getElementById('cameraScannerModal').style.display = 'flex';
+    
+    if (html5QrScanner) {
+        html5QrScanner.clear();
+    }
+    
+    html5QrScanner = new Html5Qrcode("reader");
+    
+    const config = { 
+        fps: 15, 
+        qrbox: { width: 280, height: 180 },
+        aspectRatio: 1.0
+    };
+    
+    html5QrScanner.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText, decodedResult) => {
+            stopCameraScanner();
+            handleBarcodeScanned(decodedText);
+        },
+        (errorMessage) => {
+            // Parse error (silent during search)
+        }
+    ).catch(err => {
+        console.error("Camera start error:", err);
+        stopCameraScanner();
+        // Fallback: browser custom prompt if camera is blocked/unavailable
+        customPrompt("📷 Камера недоступна. Введите или вставьте S/N машины вручную:", "", (barcode) => {
+            if (barcode !== null && barcode.trim() !== "") {
+                handleBarcodeScanned(barcode);
+            }
+        });
+    });
+}
+
+function stopCameraScanner() {
+    document.getElementById('cameraScannerModal').style.display = 'none';
+    if (html5QrScanner) {
+        html5QrScanner.stop().then(() => {
+            html5QrScanner = null;
+        }).catch(err => {
+            console.error("Failed to stop scanner:", err);
+            html5QrScanner = null;
+        });
+    }
+}
+
+function handleBarcodeScanned(barcode) {
+    if (!barcode) return;
+    barcode = barcode.trim();
+    
+    // Find matching machine by Serial (S/N) or Inventory number
+    const match = db.machines.find(m => m.serial.toLowerCase() === barcode.toLowerCase() || (m.inv && m.inv.toLowerCase() === barcode.toLowerCase()));
+    
+    if (match) {
+        showToast(`🔍 Найдена машина: ${match.model} (S/N: ${match.serial})`);
+        openServiceModal(match.id);
+    } else {
+        showToast(`⚠️ Машина с S/N [${barcode}] не найдена в базе`);
+        openScannerAddMachineModal(barcode);
+    }
+}
+
+function openScannerAddMachineModal(barcode) {
+    document.getElementById('scannedSerialVal').value = barcode;
+    document.getElementById('scannedSerialText').innerText = barcode;
+    
+    // Populate the addresses dropdown
+    populateAddressDropdown('scannerAddrSelect');
+    
+    document.getElementById('scannerAddModal').style.display = 'flex';
+}
+
+function proceedToScannerAdd() {
+    const selectEl = document.getElementById('scannerAddrSelect');
+    if (!selectEl || !selectEl.value) {
+        showToast('⚠️ База адресов пуста! Сначала добавьте адрес установки.');
+        return;
+    }
+    const addressId = parseInt(selectEl.value);
+    const serial = document.getElementById('scannedSerialVal').value;
+    
+    closeAllModals();
+    
+    // Open the standard add machine modal
+    openAddMachineModal(addressId);
+    
+    // Pre-fill the Serial Number with the scanned code
+    document.getElementById('addMachSerial').value = serial;
+}
+
+// Global callback for Kodular to call when scanning completes
+window.receiveBarcode = function(barcode) {
+    handleBarcodeScanned(barcode);
+};
+
+window.triggerBarcodeScan = triggerBarcodeScan;
+window.stopCameraScanner = stopCameraScanner;
+window.proceedToScannerAdd = proceedToScannerAdd;
