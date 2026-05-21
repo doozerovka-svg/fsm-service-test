@@ -15,16 +15,16 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Firebase SDK (v8.10.1 as requested) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- Firebase SDK (v8.10.1 local files for offline-first usage) -->
+    <script src="firebase-app.js"></script>
+    <script src="firebase-database.js"></script>
 
     <!-- PWA Manifest Link -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=11.3">
+    <link rel="stylesheet" href="styles.css?v=11.5">
 </head>
 <body>
 
@@ -68,7 +68,9 @@
                 <h3>📍 Добавить новый адрес</h3>
                 <div class="form-group">
                     <label for="addrBank">Банк / Клиент</label>
-                    <select id="addrBank" class="custom-select"></select>
+                    <div class="custom-select-wrapper" id="wrapper-addrBank">
+                        <input type="hidden" id="addrBank">
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -81,7 +83,9 @@
 
                 <div class="form-group">
                     <label for="addrRoute">Маршрут обслуживания</label>
-                    <select id="addrRoute" class="custom-select"></select>
+                    <div class="custom-select-wrapper" id="wrapper-addrRoute">
+                        <input type="hidden" id="addrRoute">
+                    </div>
                 </div>
                 
                 <button class="btn-primary" onclick="addAddress()">+ Сохранить адрес</button>
@@ -197,7 +201,9 @@
             
             <div class="form-group">
                 <label for="addMachModel">Модель машины</label>
-                <select id="addMachModel" class="custom-select"></select>
+                <div class="custom-select-wrapper" id="wrapper-addMachModel">
+                    <input type="hidden" id="addMachModel">
+                </div>
             </div>
             
             <div class="flex-row">
@@ -213,7 +219,9 @@
             
             <div class="form-group">
                 <label for="addMachEmployee">Ответственный сотрудник</label>
-                <select id="addMachEmployee" class="custom-select"></select>
+                <div class="custom-select-wrapper" id="wrapper-addMachEmployee">
+                    <input type="hidden" id="addMachEmployee">
+                </div>
             </div>
             
             <div class="form-group">
@@ -237,12 +245,16 @@
             
             <div class="form-group">
                 <label for="detMachAddress">Адрес установки (перемещение)</label>
-                <select id="detMachAddress" class="custom-select"></select>
+                <div class="custom-select-wrapper" id="wrapper-detMachAddress">
+                    <input type="hidden" id="detMachAddress">
+                </div>
             </div>
 
             <div class="form-group">
                 <label for="detMachModel">Модель машины</label>
-                <select id="detMachModel" class="custom-select"></select>
+                <div class="custom-select-wrapper" id="wrapper-detMachModel">
+                    <input type="hidden" id="detMachModel">
+                </div>
             </div>
             
             <div class="flex-row">
@@ -258,7 +270,9 @@
             
             <div class="form-group">
                 <label for="detMachEmployee">Ответственный сотрудник</label>
-                <select id="detMachEmployee" class="custom-select"></select>
+                <div class="custom-select-wrapper" id="wrapper-detMachEmployee">
+                    <input type="hidden" id="detMachEmployee">
+                </div>
             </div>
             
             <div class="form-group">
@@ -303,7 +317,9 @@
 
             <div class="form-group">
                 <label for="modalEmployee">Выполнил работу</label>
-                <select id="modalEmployee" class="custom-select"></select>
+                <div class="custom-select-wrapper" id="wrapper-modalEmployee">
+                    <input type="hidden" id="modalEmployee">
+                </div>
             </div>
             
             <div class="form-group">
@@ -356,7 +372,9 @@
             
             <div class="form-group">
                 <label for="editAddrBank">Банк / Клиент</label>
-                <select id="editAddrBank" class="custom-select"></select>
+                <div class="custom-select-wrapper" id="wrapper-editAddrBank">
+                    <input type="hidden" id="editAddrBank">
+                </div>
             </div>
             
             <div class="form-group">
@@ -366,7 +384,9 @@
             
             <div class="form-group">
                 <label for="editAddrRoute">Маршрут</label>
-                <select id="editAddrRoute" class="custom-select"></select>
+                <div class="custom-select-wrapper" id="wrapper-editAddrRoute">
+                    <input type="hidden" id="editAddrRoute">
+                </div>
             </div>
             
             <button class="btn-success btn-full" onclick="saveEditAddress()">💾 Сохранить изменения</button>
@@ -393,7 +413,9 @@
 
             <div class="form-group">
                 <label for="editHistEmployee">Выполнил работу</label>
-                <select id="editHistEmployee" class="custom-select"></select>
+                <div class="custom-select-wrapper" id="wrapper-editHistEmployee">
+                    <input type="hidden" id="editHistEmployee">
+                </div>
             </div>
             
             <div class="form-group">
@@ -457,7 +479,7 @@
     </nav>
 
     <!-- App Script logic -->
-    <script src="app.js?v=11.3"></script>
+    <script src="app.js?v=11.5"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>

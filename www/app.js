@@ -84,12 +84,15 @@ function showError(title, text) {
 // =========================================================================
 function initializeFirebase() {
     try {
+        if (typeof firebase === 'undefined') {
+            throw new Error("SDK_NOT_LOADED");
+        }
+        if (typeof firebase.database === 'undefined') {
+            throw new Error("DATABASE_SDK_NOT_LOADED");
+        }
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         const statusEl = document.getElementById('netStatus');
-        
-        // Keep data synced locally for offline usage
-        database.ref('fsm_data').keepSynced(true);
         
         // Listen for connectivity status
         database.ref(".info/connected").on("value", (snap) => {
@@ -157,13 +160,19 @@ function initializeFirebase() {
             
             const overlay = document.getElementById('loadingOverlay');
             if (overlay) overlay.style.display = 'none';
-            showToast("Ошибка загрузки данных из Firebase!");
+            showToast("Ошибка загрузки данных из Firebase: " + error.message);
         });
 
     } catch (err) {
         console.error("Firebase init failed:", err);
         const statusEl = document.getElementById('netStatus');
-        statusEl.innerText = "🔴 Ошибка ключей";
+        if (err.message === "SDK_NOT_LOADED") {
+            statusEl.innerText = "🔴 Ошибка: Не загружен Firebase SDK";
+        } else if (err.message === "DATABASE_SDK_NOT_LOADED") {
+            statusEl.innerText = "🔴 Ошибка: Не загружен SDK БД";
+        } else {
+            statusEl.innerText = "🔴 Ошибка ключей: " + err.message;
+        }
         statusEl.style.color = "var(--danger-color)";
         statusEl.style.borderColor = "rgba(239, 68, 68, 0.2)";
         statusEl.style.backgroundColor = "rgba(239, 68, 68, 0.05)";
@@ -814,23 +823,142 @@ function deleteHistory(id) {
 // =========================================================================
 // DATA POPULATION HELPERS
 // =========================================================================
-function populateDropdown(selectId, itemsArray, selectedValue = '') {
-    const select = document.getElementById(selectId);
-    if (!select) return;
+function populateDropdown(inputId, itemsArray, selectedValue = '') {
+    const wrapper = document.getElementById('wrapper-' + inputId);
+    const hiddenInput = document.getElementById(inputId);
+    if (!wrapper || !hiddenInput) return;
+
+    // Use currently selected value from DOM if selectedValue is not specified
+    const currentValue = selectedValue || hiddenInput.value;
+    let displayValue = 'Выберите...';
     
-    select.innerHTML = itemsArray.map(item => `
-        <option value="${item}" ${item === selectedValue ? 'selected' : ''}>${item}</option>
-    `).join('');
+    if (currentValue && itemsArray.includes(currentValue)) {
+        displayValue = currentValue;
+    } else if (itemsArray.length > 0) {
+        displayValue = itemsArray[0];
+    }
+
+    const resolvedValue = displayValue === 'Выберите...' ? '' : displayValue;
+
+    wrapper.innerHTML = `
+        <input type="hidden" id="${inputId}" value="${resolvedValue.replace(/"/g, '&quot;')}">
+        <div class="custom-select-trigger" onclick="toggleCustomDropdown(event, '${inputId}')">
+            <span id="trigger-text-${inputId}">${displayValue}</span>
+            <span class="custom-select-arrow">▼</span>
+        </div>
+        <div class="custom-select-options" id="options-${inputId}">
+            ${itemsArray.map(item => `
+                <div class="custom-select-option ${item === resolvedValue ? 'selected' : ''}" 
+                     onclick="selectCustomOption('${inputId}', '${item.replace(/'/g, "\\'")}')">
+                    ${item}
+                </div>
+            `).join('')}
+        </div>
+    `;
 }
 
-function populateAddressDropdown(selectId, selectedId = 0) {
-    const select = document.getElementById(selectId);
-    if (!select) return;
+function populateAddressDropdown(inputId, selectedId = 0) {
+    const wrapper = document.getElementById('wrapper-' + inputId);
+    const hiddenInput = document.getElementById(inputId);
+    if (!wrapper || !hiddenInput) return;
+
+    // If selectedId is 0 or not passed, look at current hidden input value
+    const currentId = parseInt(selectedId) || parseInt(hiddenInput.value) || 0;
+    let selectedAddr = db.addresses.find(a => a.id === currentId);
+    let displayValue = 'Выберите адрес...';
+    let resolvedValue = '';
     
-    select.innerHTML = db.addresses.map(a => `
-        <option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${a.bank} - ${a.address}</option>
-    `).join('');
+    if (selectedAddr) {
+        resolvedValue = selectedAddr.id;
+        displayValue = `${selectedAddr.bank} - ${selectedAddr.address}`;
+    } else if (db.addresses.length > 0) {
+        resolvedValue = db.addresses[0].id;
+        displayValue = `${db.addresses[0].bank} - ${db.addresses[0].address}`;
+    }
+
+    wrapper.innerHTML = `
+        <input type="hidden" id="${inputId}" value="${resolvedValue}">
+        <div class="custom-select-trigger" onclick="toggleCustomDropdown(event, '${inputId}')">
+            <span id="trigger-text-${inputId}">${displayValue}</span>
+            <span class="custom-select-arrow">▼</span>
+        </div>
+        <div class="custom-select-options" id="options-${inputId}">
+            ${db.addresses.map(a => `
+                <div class="custom-select-option ${a.id == resolvedValue ? 'selected' : ''}" 
+                     onclick="selectCustomOption('${inputId}', '${a.id}', '${a.bank.replace(/'/g, "\\'")} - ${a.address.replace(/'/g, "\\'")}')">
+                    ${a.bank} - ${a.address}
+                </div>
+            `).join('')}
+        </div>
+    `;
 }
+
+function toggleCustomDropdown(event, inputId) {
+    event.stopPropagation();
+    const wrapper = document.getElementById('wrapper-' + inputId);
+    const optionsDiv = document.getElementById('options-' + inputId);
+    if (!optionsDiv || !wrapper) return;
+    
+    const isOpen = wrapper.classList.contains('open');
+    
+    document.querySelectorAll('.custom-select-wrapper').forEach(el => {
+        el.classList.remove('open');
+    });
+    document.querySelectorAll('.custom-select-options').forEach(el => {
+        el.classList.remove('open');
+    });
+    
+    if (!isOpen) {
+        wrapper.classList.add('open');
+        optionsDiv.classList.add('open');
+    }
+}
+
+function selectCustomOption(inputId, value, label = null) {
+    const hiddenInput = document.getElementById(inputId);
+    const triggerText = document.getElementById('trigger-text-' + inputId);
+    const optionsDiv = document.getElementById('options-' + inputId);
+    const wrapper = document.getElementById('wrapper-' + inputId);
+    
+    if (hiddenInput && triggerText) {
+        hiddenInput.value = value;
+        triggerText.innerText = label || value;
+        
+        if (optionsDiv) {
+            optionsDiv.querySelectorAll('.custom-select-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            const options = Array.from(optionsDiv.querySelectorAll('.custom-select-option'));
+            const matchingOpt = options.find(opt => {
+                const clickAttr = opt.getAttribute('onclick') || '';
+                return clickAttr.includes(`'${value.replace(/'/g, "\\'")}'`) || clickAttr.includes(`"${value}"`);
+            });
+            if (matchingOpt) {
+                matchingOpt.classList.add('selected');
+            }
+            optionsDiv.classList.remove('open');
+        }
+        if (wrapper) {
+            wrapper.classList.remove('open');
+        }
+    }
+}
+
+// Global click handler to close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.custom-select-wrapper')) {
+        document.querySelectorAll('.custom-select-wrapper').forEach(el => {
+            el.classList.remove('open');
+        });
+        document.querySelectorAll('.custom-select-options').forEach(el => {
+            el.classList.remove('open');
+        });
+    }
+});
+
+// Expose functions globally
+window.toggleCustomDropdown = toggleCustomDropdown;
+window.selectCustomOption = selectCustomOption;
 
 // =========================================================================
 // RENDER CONTEXT CONTROLLERS

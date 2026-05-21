@@ -1153,3 +1153,86 @@ details[open] > summary .details-indicator {
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
 }
+
+/* =========================================================================
+   CUSTOM SELECT DROPDOWN COMPONENT
+   ========================================================================= */
+.custom-select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.custom-select-trigger {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background-color: var(--bg-input);
+    border: 1px solid #ccc;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 15px;
+    color: var(--text-primary);
+    transition: var(--transition-quick);
+    user-select: none;
+    min-height: 42px;
+}
+
+.custom-select-trigger:hover,
+.custom-select-wrapper.open .custom-select-trigger {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+    outline: none;
+}
+
+.custom-select-arrow {
+    font-size: 11px;
+    color: var(--text-muted);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.custom-select-wrapper.open .custom-select-arrow {
+    transform: rotate(180deg);
+    color: var(--primary-color);
+}
+
+.custom-select-options {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background-color: var(--bg-input);
+    border: 1px solid var(--primary-color);
+    border-radius: var(--radius-md);
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1050;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    animation: fadeIn 0.15s ease;
+}
+
+.custom-select-options.open {
+    display: block;
+}
+
+.custom-select-option {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-primary);
+    transition: var(--transition-quick);
+    text-align: left;
+}
+
+.custom-select-option:hover {
+    background: var(--primary-glow);
+    color: var(--primary-color);
+}
+
+.custom-select-option.selected {
+    background: var(--primary-color);
+    color: #ffffff;
+    font-weight: 500;
+}

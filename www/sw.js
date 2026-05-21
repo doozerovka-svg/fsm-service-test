@@ -1,10 +1,12 @@
-const CACHE_NAME = 'fsm-cache-v11.3';
+const CACHE_NAME = 'fsm-cache-v11.5';
 const ASSETS = [
     './index.html',
     './styles.css',
     './app.js',
     './manifest.json',
-    './icon.png'
+    './icon.png',
+    './firebase-app.js',
+    './firebase-database.js'
 ];
 
 // Install Event
