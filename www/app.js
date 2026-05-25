@@ -189,15 +189,10 @@ function saveData(path = null, data = null) {
     renderAll();
 
     if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-        if (path !== null) {
-            firebase.database().ref('fsm_data/' + path).set(data).catch((error) => {
-                console.log(`Синхронизация пути ${path} отложена (офлайн): ` + error.message);
-            });
-        } else {
-            firebase.database().ref('fsm_data').set(db).catch((error) => {
-                console.log("Синхронизация отложена (офлайн): " + error.message);
-            });
-        }
+        // ALWAYS write the entire database to maintain array structure compatibility for older clients
+        firebase.database().ref('fsm_data').set(db).catch((error) => {
+            console.log("Синхронизация отложена (офлайн): " + error.message);
+        });
     }
 }
 
