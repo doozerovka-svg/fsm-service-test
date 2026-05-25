@@ -26,6 +26,16 @@ let db = JSON.parse(localStorage.getItem('fsm_db_v11')) || {
     history: [] 
 };
 
+// Fallback initializations for older localStorage schemas
+db.models = db.models || ["Magner 150", "Kisan Newton", "SBM SB-2000"];
+db.banks = db.banks || ["MAIB", "Moldindconbank", "Victoriabank"];
+db.routes = db.routes || ["Маршрут 1 (Центр)", "Маршрут 2 (Ботаника)"];
+db.employees = db.employees || ["Инженер 1", "Инженер 2"];
+db.cities = db.cities || ["Кишинев", "Бельцы"];
+db.addresses = db.addresses || [];
+db.machines = db.machines || [];
+db.history = db.history || [];
+
 // Helper to convert Firebase objects back to JS arrays
 function ensureArray(val) {
     if (!val) return [];
