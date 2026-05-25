@@ -540,6 +540,54 @@ details[open] > summary .details-indicator {
     transform: rotate(180deg);
 }
 
+/* Dashboard City Collapsible */
+.dash-city {
+    margin: 8px 0;
+    border: 1px solid #d1ecf1;
+    box-shadow: none;
+}
+
+.dash-city > summary {
+    background: #e0f2f1;
+    color: #0c5460;
+    font-size: 14px;
+    padding: 12px;
+}
+
+.dash-city-content {
+    padding: 8px;
+}
+
+/* Collapsible Address Cards in Address Tab */
+.address-card-details {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    box-shadow: none;
+    overflow: visible;
+}
+
+.address-card-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: transparent;
+    padding: 0;
+    font-weight: normal;
+    list-style: none;
+    cursor: pointer;
+    outline: none;
+}
+
+.address-card-summary::-webkit-details-marker {
+    display: none;
+}
+
+.address-card-details[open] > .address-card-summary .details-indicator {
+    transform: rotate(180deg);
+}
+
 .details-content {
     padding: 10px;
     background: #fff;

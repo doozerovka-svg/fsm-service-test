@@ -20,6 +20,7 @@ let db = JSON.parse(localStorage.getItem('fsm_db_v11')) || {
     banks: ["MAIB", "Moldindconbank", "Victoriabank"], 
     routes: ["Маршрут 1 (Центр)", "Маршрут 2 (Ботаника)"], 
     employees: ["Инженер 1", "Инженер 2"], 
+    cities: ["Кишинев", "Бельцы"], 
     addresses: [], 
     machines: [], 
     history: [] 
@@ -134,6 +135,7 @@ function initializeFirebase() {
                 db.banks = ensureArray(db.banks);
                 db.routes = ensureArray(db.routes);
                 db.employees = ensureArray(db.employees);
+                db.cities = ensureArray(db.cities);
                 db.addresses = ensureArray(db.addresses);
                 db.machines = ensureArray(db.machines);
                 db.history = ensureArray(db.history);
@@ -412,10 +414,11 @@ function addAddress() {
     const bank = document.getElementById('addrBank').value;
     const address = document.getElementById('addrText').value.trim();
     const route = document.getElementById('addrRoute').value;
+    const city = document.getElementById('addrCity').value;
     
-    if (!bank || !address || !route) return showToast('⚠️ Заполните все поля!');
+    if (!bank || !address || !route || !city) return showToast('⚠️ Заполните все поля!');
     
-    const newAddr = { id: Date.now(), bank, address, route };
+    const newAddr = { id: Date.now(), bank, address, route, city };
     db.addresses.push(newAddr);
     saveData('addresses/' + newAddr.id, newAddr);
     document.getElementById('addrText').value = '';
@@ -431,6 +434,7 @@ function openEditAddress(id) {
     // Refresh dropdowns in edit address modal
     populateDropdown('editAddrBank', db.banks, a.bank);
     populateDropdown('editAddrRoute', db.routes, a.route);
+    populateDropdown('editAddrCity', db.cities, a.city || '');
     
     document.getElementById('editAddrText').value = a.address;
     document.getElementById('editAddressModal').style.display = 'flex';
@@ -444,6 +448,7 @@ function saveEditAddress() {
             a.bank = document.getElementById('editAddrBank').value;
             a.address = document.getElementById('editAddrText').value.trim();
             a.route = document.getElementById('editAddrRoute').value;
+            a.city = document.getElementById('editAddrCity').value;
             saveData('addresses/' + a.id, a);
             closeAllModals();
             showToast('✅ Адрес обновлен!');
@@ -967,6 +972,7 @@ function renderAll() {
     // Populate dynamic drop-downs in all forms
     populateDropdown('addrBank', db.banks);
     populateDropdown('addrRoute', db.routes);
+    populateDropdown('addrCity', db.cities);
     
     // Check if active tabs need updates
     const activeTab = document.querySelector('.tab-content.active-tab');
@@ -990,6 +996,7 @@ function renderSettings() {
     renderDictContainer('bankListContainer', 'banks');
     renderDictContainer('routeListContainer', 'routes');
     renderDictContainer('employeeListContainer', 'employees');
+    renderDictContainer('cityListContainer', 'cities');
 }
 
 function renderDictContainer(containerId, type) {
@@ -1044,114 +1051,167 @@ function renderDashboard() {
         let totalCompleted = 0;
         let routeHtml = '';
         
-        routeAddresses.forEach(addr => {
-            const addrMachines = db.machines.filter(m => m.addressId === addr.id);
-            if (addrMachines.length === 0) return;
+        // Find all unique cities in this route
+        const routeCities = [...new Set(routeAddresses.map(a => a.city || db.cities[0] || 'Кишинев'))].sort();
+        
+        routeCities.forEach(city => {
+            const cityAddresses = routeAddresses.filter(a => (a.city || db.cities[0] || 'Кишинев') === city);
             
-            let addrHtml = '';
-            let addrTarget = 0;
-            let addrCompleted = 0;
+            // Filter addresses that actually have machines
+            const activeCityAddresses = cityAddresses.filter(addr => db.machines.some(m => m.addressId === addr.id));
+            if (activeCityAddresses.length === 0) return;
             
-            addrMachines.forEach(mach => {
-                // Find all service records for this machine in the current month
-                const thisMonthServices = db.history.filter(h => h.machineId === mach.id && isCurrentMonth(h.date));
-                const completedCount = thisMonthServices.length;
+            let cityTarget = 0;
+            let cityCompleted = 0;
+            let cityAddressesHtml = '';
+            
+            activeCityAddresses.forEach(addr => {
+                const addrMachines = db.machines.filter(m => m.addressId === addr.id);
+                if (addrMachines.length === 0) return;
                 
-                // Add to calculations
-                const targetCount = mach.freq;
-                addrTarget += targetCount;
-                addrCompleted += Math.min(completedCount, targetCount);
+                let addrHtml = '';
+                let addrTarget = 0;
+                let addrCompleted = 0;
                 
-                totalTarget += targetCount;
-                totalCompleted += Math.min(completedCount, targetCount); // cap at target limit
-                
-                let badgeClass = 'pending';
-                let badgeText = '';
-                
-                if (targetCount === 0) {
-                    // Service by request
-                    if (completedCount > 0) {
-                        badgeClass = 'done';
-                        badgeText = `Выполнено (${completedCount})`;
+                addrMachines.forEach(mach => {
+                    // Find all service records for this machine in the current month
+                    const thisMonthServices = db.history.filter(h => h.machineId === mach.id && isCurrentMonth(h.date));
+                    const completedCount = thisMonthServices.length;
+                    
+                    // Add to calculations
+                    const targetCount = mach.freq;
+                    addrTarget += targetCount;
+                    addrCompleted += Math.min(completedCount, targetCount);
+                    
+                    let badgeClass = 'pending';
+                    let badgeText = '';
+                    
+                    if (targetCount === 0) {
+                        // Service by request
+                        if (completedCount > 0) {
+                            badgeClass = 'done';
+                            badgeText = `Выполнено (${completedCount})`;
+                        } else {
+                            badgeClass = 'info';
+                            badgeText = 'По запросу';
+                        }
                     } else {
-                        badgeClass = 'info';
-                        badgeText = 'По запросу';
+                        if (completedCount >= targetCount) {
+                            badgeClass = 'done';
+                            badgeText = 'Выполнено';
+                        } else if (completedCount > 0) {
+                            badgeClass = 'pending';
+                            badgeText = `В процессе: ${completedCount}/${targetCount}`;
+                        } else {
+                            // Check if overdue
+                            const machineHistory = db.history.filter(h => h.machineId === mach.id);
+                            if (machineHistory.length > 0) {
+                                const lastService = new Date(machineHistory[0].date);
+                                const diffDays = Math.ceil(Math.abs(now - lastService) / (1000 * 60 * 60 * 24));
+                                if (diffDays > 35) {
+                                    badgeClass = 'overdue';
+                                    badgeText = 'Просрочено';
+                                } else {
+                                    badgeClass = 'pending';
+                                    badgeText = 'Ожидает ТО';
+                                }
+                            } else {
+                                badgeClass = 'overdue';
+                                badgeText = 'Требует ТО';
+                            }
+                        }
+                    }
+                    
+                    addrHtml += `
+                        <div class="list-item clickable" onclick="openServiceModal(${mach.id})" data-machine-text="${mach.model.toLowerCase()} ${mach.serial.toLowerCase()} ${mach.inv ? mach.inv.toLowerCase() : ''}${mach.employee ? ' ' + mach.employee.toLowerCase() : ''}">
+                            <div class="list-item-main">
+                                <span class="list-item-title">${mach.model}</span>
+                                <span class="list-item-subtitle">S/N: ${mach.serial} ${mach.inv ? ' | Inv: ' + mach.inv : ''}${mach.employee ? ' | Отв: ' + mach.employee : ''}</span>
+                            </div>
+                            <span class="badge ${badgeClass}">${badgeText}</span>
+                        </div>
+                    `;
+                });
+                
+                // Calculate address badge status
+                let addrBadgeClass = 'pending';
+                let addrBadgeText = '';
+                if (addrTarget === 0) {
+                    if (addrCompleted > 0) {
+                        addrBadgeClass = 'done';
+                        addrBadgeText = `Сделано: ${addrCompleted}`;
+                    } else {
+                        addrBadgeClass = 'info';
+                        addrBadgeText = 'По запросу';
                     }
                 } else {
-                    if (completedCount >= targetCount) {
-                        badgeClass = 'done';
-                        badgeText = 'Выполнено';
-                    } else if (completedCount > 0) {
-                        badgeClass = 'pending';
-                        badgeText = `В процессе: ${completedCount}/${targetCount}`;
+                    addrBadgeText = `${addrCompleted}/${addrTarget}`;
+                    if (addrCompleted >= addrTarget) {
+                        addrBadgeClass = 'done';
                     } else {
-                        // Check if overdue
-                        const machineHistory = db.history.filter(h => h.machineId === mach.id);
-                        if (machineHistory.length > 0) {
-                            const lastService = new Date(machineHistory[0].date);
-                            const diffDays = Math.ceil(Math.abs(now - lastService) / (1000 * 60 * 60 * 24));
-                            if (diffDays > 35) {
-                                badgeClass = 'overdue';
-                                badgeText = 'Просрочено';
-                            } else {
-                                badgeClass = 'pending';
-                                badgeText = 'Ожидает ТО';
-                            }
-                        } else {
-                            badgeClass = 'overdue';
-                            badgeText = 'Требует ТО';
-                        }
+                        addrBadgeClass = 'pending';
                     }
                 }
                 
-                addrHtml += `
-                    <div class="list-item clickable" onclick="openServiceModal(${mach.id})" data-machine-text="${mach.model.toLowerCase()} ${mach.serial.toLowerCase()} ${mach.inv ? mach.inv.toLowerCase() : ''}${mach.employee ? ' ' + mach.employee.toLowerCase() : ''}">
-                        <div class="list-item-main">
-                            <span class="list-item-title">${mach.model}</span>
-                            <span class="list-item-subtitle">S/N: ${mach.serial} ${mach.inv ? ' | Inv: ' + mach.inv : ''}${mach.employee ? ' | Отв: ' + mach.employee : ''}</span>
+                cityTarget += addrTarget;
+                cityCompleted += addrCompleted;
+                
+                totalTarget += addrTarget;
+                totalCompleted += addrCompleted;
+                
+                cityAddressesHtml += `
+                    <details class="dash-address" data-address-text="${addr.bank.toLowerCase()} ${addr.address.toLowerCase()}">
+                        <summary>
+                            <span>📍 ${addr.bank}, ${addr.address}</span>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span class="badge ${addrBadgeClass}">${addrBadgeText}</span>
+                                <span class="details-indicator">▼</span>
+                            </div>
+                        </summary>
+                        <div class="details-content dash-address-content">
+                            <button class="btn-outline" style="width:100%; margin-bottom:8px; font-size:12px; padding:6px 12px;" onclick="openMapInKodular('${addr.bank}, ${addr.address}')">🗺️ Показать на карте</button>
+                            <div class="form-group" style="margin-bottom: 10px;">
+                                <input type="text" placeholder="🔍 Поиск по адресу (модель, S/N)..." class="address-search-input" oninput="applyAddressSearch(this)" style="margin-bottom: 0; padding: 8px 10px; font-size: 13px;">
+                            </div>
+                            <div class="address-machines-list">
+                                ${addrHtml}
+                            </div>
                         </div>
-                        <span class="badge ${badgeClass}">${badgeText}</span>
-                    </div>
+                    </details>
                 `;
             });
             
-            // Calculate address badge status
-            let addrBadgeClass = 'pending';
-            let addrBadgeText = '';
-            if (addrTarget === 0) {
-                if (addrCompleted > 0) {
-                    addrBadgeClass = 'done';
-                    addrBadgeText = `Сделано: ${addrCompleted}`;
+            // Calculate City badge status
+            let cityBadgeClass = 'pending';
+            let cityBadgeText = '';
+            if (cityTarget === 0) {
+                if (cityCompleted > 0) {
+                    cityBadgeClass = 'done';
+                    cityBadgeText = `Сделано: ${cityCompleted}`;
                 } else {
-                    addrBadgeClass = 'info';
-                    addrBadgeText = 'По запросу';
+                    cityBadgeClass = 'info';
+                    cityBadgeText = 'По запросу';
                 }
             } else {
-                addrBadgeText = `${addrCompleted}/${addrTarget}`;
-                if (addrCompleted >= addrTarget) {
-                    addrBadgeClass = 'done';
+                cityBadgeText = `${cityCompleted}/${cityTarget}`;
+                if (cityCompleted >= cityTarget) {
+                    cityBadgeClass = 'done';
                 } else {
-                    addrBadgeClass = 'pending';
+                    cityBadgeClass = 'pending';
                 }
             }
             
             routeHtml += `
-                <details class="dash-address" data-address-text="${addr.bank.toLowerCase()} ${addr.address.toLowerCase()}">
+                <details class="dash-city" open>
                     <summary>
-                        <span>📍 ${addr.bank}, ${addr.address}</span>
+                        <span>🏙️ ${city}</span>
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <span class="badge ${addrBadgeClass}">${addrBadgeText}</span>
+                            <span class="badge ${cityBadgeClass}">${cityBadgeText}</span>
                             <span class="details-indicator">▼</span>
                         </div>
                     </summary>
-                    <div class="details-content dash-address-content">
-                        <button class="btn-outline" style="width:100%; margin-bottom:8px; font-size:12px; padding:6px 12px;" onclick="openMapInKodular('${addr.bank}, ${addr.address}')">🗺️ Показать на карте</button>
-                        <div class="form-group" style="margin-bottom: 10px;">
-                            <input type="text" placeholder="🔍 Поиск по адресу (модель, S/N)..." class="address-search-input" oninput="applyAddressSearch(this)" style="margin-bottom: 0; padding: 8px 10px; font-size: 13px;">
-                        </div>
-                        <div class="address-machines-list">
-                            ${addrHtml}
-                        </div>
+                    <div class="details-content dash-city-content">
+                        ${cityAddressesHtml}
                     </div>
                 </details>
             `;
@@ -1219,31 +1279,36 @@ function renderAddresses() {
         }
         
         return `
-            <div class="card address-card" data-address-text="${a.bank.toLowerCase()} ${a.address.toLowerCase()} ${a.route.toLowerCase()}">
-                <div class="address-card-header">
-                    <div>
-                        <div class="address-title">${a.bank}</div>
-                        <div class="address-meta">
-                            <span>📍 ${a.address}</span>
+            <div class="card address-card" data-address-text="${a.bank.toLowerCase()} ${a.address.toLowerCase()} ${a.route.toLowerCase()} ${(a.city || '').toLowerCase()}">
+                <details class="address-card-details">
+                    <summary class="address-card-summary">
+                        <div class="address-card-header-wrapper" style="flex: 1; display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <div class="address-title">${a.bank}</div>
+                                <div class="address-meta">
+                                    <span>📍 ${a.address}</span>
+                                </div>
+                                <div style="font-size: 11px; color: var(--text-muted);">Маршрут: ${a.route} | Город: ${a.city || db.cities[0] || 'Кишинев'}</div>
+                            </div>
+                            <div class="actions" style="display: flex; gap: 8px; align-items: center; padding-right: 4px;">
+                                <button class="btn-outline" style="padding:4px 8px;" onclick="event.stopPropagation(); openEditAddress(${a.id})" title="Редактировать адрес">✏️</button>
+                                <button class="btn-danger" style="padding:4px 8px;" onclick="event.stopPropagation(); deleteAddress(${a.id})" title="Удалить адрес">🗑️</button>
+                                <span class="details-indicator" style="margin-left: 8px;">▼</span>
+                            </div>
                         </div>
-                        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Маршрут: ${a.route}</div>
+                    </summary>
+                    
+                    <div class="machines-group">
+                        <div class="machines-group-title">Оборудование на точке</div>
+                        <div class="form-group" style="margin-bottom: 8px;">
+                            <input type="text" placeholder="🔍 Поиск оборудования (модель, S/N)..." class="address-card-machine-search" oninput="filterAddressCardMachines(this)" style="margin-bottom: 0; padding: 6px 10px; font-size: 13px;">
+                        </div>
+                        <div class="machines-card-list">
+                            ${machHtml}
+                        </div>
+                        <button class="btn-primary" style="padding: 8px; font-size:12px; margin-top:8px; width:100%;" onclick="openAddMachineModal(${a.id})">+ Добавить машину</button>
                     </div>
-                    <div class="actions">
-                        <button class="btn-outline" style="padding:4px 8px;" onclick="openEditAddress(${a.id})" title="Редактировать адрес">✏️</button>
-                        <button class="btn-danger" style="padding:4px 8px;" onclick="deleteAddress(${a.id})" title="Удалить адрес">🗑️</button>
-                    </div>
-                </div>
-                
-                <div class="machines-group">
-                    <div class="machines-group-title">Оборудование на точке</div>
-                    <div class="form-group" style="margin-bottom: 8px;">
-                        <input type="text" placeholder="🔍 Поиск оборудования (модель, S/N)..." class="address-card-machine-search" oninput="filterAddressCardMachines(this)" style="margin-bottom: 0; padding: 6px 10px; font-size: 13px;">
-                    </div>
-                    <div class="machines-card-list">
-                        ${machHtml}
-                    </div>
-                    <button class="btn-primary" style="padding: 8px; font-size:12px; margin-top:8px; width:100%;" onclick="openAddMachineModal(${a.id})">+ Добавить машину</button>
-                </div>
+                </details>
             </div>
         `;
     }).join('');
@@ -1402,6 +1467,14 @@ function applyRouteSearch(routeInput) {
             addrEl.style.display = 'none';
         }
     });
+
+    // Hide/show city collapsibles based on visible addresses
+    const cities = routeDetails.querySelectorAll('.dash-city');
+    cities.forEach(cityEl => {
+        const cityAddresses = cityEl.querySelectorAll('.dash-address');
+        const visibleAddresses = Array.from(cityAddresses).filter(a => a.style.display !== 'none');
+        cityEl.style.display = visibleAddresses.length > 0 ? 'block' : 'none';
+    });
 }
 
 function applyAddressSearch(addrInput) {
@@ -1437,6 +1510,14 @@ function applyAddressSearch(addrInput) {
         addrEl.style.display = 'block';
     } else {
         addrEl.style.display = 'none';
+    }
+
+    // Hide/show city collapsible based on sibling address visibilities
+    const cityEl = addrEl.closest('.dash-city');
+    if (cityEl) {
+        const cityAddresses = cityEl.querySelectorAll('.dash-address');
+        const visibleAddresses = Array.from(cityAddresses).filter(a => a.style.display !== 'none');
+        cityEl.style.display = visibleAddresses.length > 0 ? 'block' : 'none';
     }
 }
 
