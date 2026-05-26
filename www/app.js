@@ -1310,60 +1310,118 @@ function renderAddresses() {
         container.innerHTML = '<p style="text-align:center; padding: 20px 0; color:var(--text-muted)">Список адресов пуст.</p>';
         return;
     }
-    
-    container.innerHTML = db.addresses.map(a => {
-        const addrMachines = db.machines.filter(m => m.addressId == a.id);
-        
-        let machHtml = '';
-        if (addrMachines.length === 0) {
-            machHtml = '<p style="font-size:11px; color:var(--text-muted); text-align:center; margin:8px 0;">Оборудование отсутствует.</p>';
-        } else {
-            machHtml = addrMachines.map(m => `
-                <div class="machine-pill" onclick="openMachineDetails(${m.id})" data-machine-text="${m.model.toLowerCase()} ${m.serial.toLowerCase()} ${m.inv ? m.inv.toLowerCase() : ''}${m.employee ? ' ' + m.employee.toLowerCase() : ''}">
-                    <div class="machine-pill-info">
-                        <span class="machine-model">${m.model}</span>
-                        <span class="machine-sn">S/N: ${m.serial} ${m.inv ? ' | Inv: ' + m.inv : ''}${m.employee ? ' | Отв: ' + m.employee : ''}</span>
-                    </div>
-                    <span class="badge info" style="padding: 2px 8px; font-size:10px;">${m.freq} ТО/мес</span>
-                </div>
-            `).join('');
+
+    // 1. Group addresses by city and then by bank
+    const cityGroups = {};
+    db.addresses.forEach(a => {
+        const city = a.city || db.cities[0] || 'Кишинев';
+        const bank = a.bank || 'Другие';
+        if (!cityGroups[city]) {
+            cityGroups[city] = {};
         }
-        
-        return `
-            <div class="card address-card" data-address-text="${a.bank.toLowerCase()} ${a.address.toLowerCase()} ${a.route.toLowerCase()} ${(a.city || '').toLowerCase()}">
-                <details class="address-card-details">
-                    <summary class="address-card-summary">
-                        <div class="address-card-header-wrapper" style="flex: 1; display: flex; justify-content: space-between; align-items: flex-start;">
-                            <div>
-                                <div class="address-title">${a.bank}</div>
-                                <div class="address-meta">
-                                    <span>📍 ${a.address}</span>
+        if (!cityGroups[city][bank]) {
+            cityGroups[city][bank] = [];
+        }
+        cityGroups[city][bank].push(a);
+    });
+
+    // 2. Render the hierarchy
+    let html = '';
+    const sortedCities = Object.keys(cityGroups).sort();
+
+    sortedCities.forEach(city => {
+        const banksInCity = cityGroups[city];
+        const sortedBanks = Object.keys(banksInCity).sort();
+        let banksHtml = '';
+
+        sortedBanks.forEach(bank => {
+            const addresses = banksInCity[bank];
+            let addressesHtml = '';
+
+            addresses.forEach(a => {
+                const addrMachines = db.machines.filter(m => m.addressId == a.id);
+                let machHtml = '';
+
+                if (addrMachines.length === 0) {
+                    machHtml = '<p style="font-size:11px; color:var(--text-muted); text-align:center; margin:8px 0;">Оборудование отсутствует.</p>';
+                } else {
+                    machHtml = addrMachines.map(m => `
+                        <div class="machine-pill" onclick="openMachineDetails(${m.id})" data-machine-text="${m.model.toLowerCase()} ${m.serial.toLowerCase()} ${m.inv ? m.inv.toLowerCase() : ''}${m.employee ? ' ' + m.employee.toLowerCase() : ''}">
+                            <div class="machine-pill-info">
+                                <span class="machine-model">${m.model}</span>
+                                <span class="machine-sn">S/N: ${m.serial} ${m.inv ? ' | Inv: ' + m.inv : ''}${m.employee ? ' | Отв: ' + m.employee : ''}</span>
+                            </div>
+                            <span class="badge info" style="padding: 2px 8px; font-size:10px;">${m.freq} ТО/мес</span>
+                        </div>
+                    `).join('');
+                }
+
+                addressesHtml += `
+                    <div class="card address-card" data-address-text="${a.bank.toLowerCase()} ${a.address.toLowerCase()} ${a.route.toLowerCase()} ${(a.city || '').toLowerCase()}" style="margin-bottom: 8px;">
+                        <details class="address-card-details">
+                            <summary class="address-card-summary">
+                                <div class="address-card-header-wrapper" style="flex: 1; display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                        <div class="address-title" style="font-size: 14px; font-weight: 600; color: var(--text-primary);">📍 ${a.address}</div>
+                                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Маршрут: ${a.route}</div>
+                                    </div>
+                                    <div class="actions" style="display: flex; gap: 8px; align-items: center; padding-right: 4px;">
+                                        <button class="btn-outline" style="padding:4px 8px;" onclick="event.stopPropagation(); openEditAddress(${a.id})" title="Редактировать адрес">✏️</button>
+                                        <button class="btn-danger" style="padding:4px 8px;" onclick="event.stopPropagation(); deleteAddress(${a.id})" title="Удалить адрес">🗑️</button>
+                                        <span class="details-indicator" style="margin-left: 8px;">▼</span>
+                                    </div>
                                 </div>
-                                <div style="font-size: 11px; color: var(--text-muted);">Маршрут: ${a.route} | Город: ${a.city || db.cities[0] || 'Кишинев'}</div>
+                            </summary>
+                            
+                            <div class="machines-group" style="margin-top: 8px; padding: 8px; background: #fafafa;">
+                                <div class="machines-group-title" style="font-size: 11px; margin-bottom: 6px;">Оборудование на точке</div>
+                                <div class="form-group" style="margin-bottom: 8px;">
+                                    <input type="text" placeholder="🔍 Поиск оборудования (модель, S/N)..." class="address-card-machine-search" oninput="filterAddressCardMachines(this)" style="margin-bottom: 0; padding: 6px 10px; font-size: 12px; height: auto;">
+                                </div>
+                                <div class="machines-card-list">
+                                    ${machHtml}
+                                </div>
+                                <button class="btn-primary" style="padding: 6px; font-size:11px; margin-top:8px; width:100%;" onclick="openAddMachineModal(${a.id})">+ Добавить машину</button>
                             </div>
-                            <div class="actions" style="display: flex; gap: 8px; align-items: center; padding-right: 4px;">
-                                <button class="btn-outline" style="padding:4px 8px;" onclick="event.stopPropagation(); openEditAddress(${a.id})" title="Редактировать адрес">✏️</button>
-                                <button class="btn-danger" style="padding:4px 8px;" onclick="event.stopPropagation(); deleteAddress(${a.id})" title="Удалить адрес">🗑️</button>
-                                <span class="details-indicator" style="margin-left: 8px;">▼</span>
-                            </div>
+                        </details>
+                    </div>
+                `;
+            });
+
+            banksHtml += `
+                <details class="addr-bank-collapsible">
+                    <summary>
+                        <span>🏦 ${bank}</span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="badge info" style="padding: 2px 8px; font-size:10px;">${addresses.length}</span>
+                            <span class="details-indicator">▼</span>
                         </div>
                     </summary>
-                    
-                    <div class="machines-group">
-                        <div class="machines-group-title">Оборудование на точке</div>
-                        <div class="form-group" style="margin-bottom: 8px;">
-                            <input type="text" placeholder="🔍 Поиск оборудования (модель, S/N)..." class="address-card-machine-search" oninput="filterAddressCardMachines(this)" style="margin-bottom: 0; padding: 6px 10px; font-size: 13px;">
-                        </div>
-                        <div class="machines-card-list">
-                            ${machHtml}
-                        </div>
-                        <button class="btn-primary" style="padding: 8px; font-size:12px; margin-top:8px; width:100%;" onclick="openAddMachineModal(${a.id})">+ Добавить машину</button>
+                    <div class="details-content" style="padding: 8px; background: #fff;">
+                        ${addressesHtml}
                     </div>
                 </details>
-            </div>
+            `;
+        });
+
+        html += `
+            <details class="addr-city-collapsible">
+                <summary>
+                    <span>🏙️ ${city}</span>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="badge info" style="background-color: #00838f; color: #fff; padding: 2px 8px; font-size:10px;">${Object.values(banksInCity).reduce((sum, arr) => sum + arr.length, 0)}</span>
+                        <span class="details-indicator">▼</span>
+                    </div>
+                </summary>
+                <div class="details-content" style="padding: 10px 12px; background: #fff;">
+                    ${banksHtml}
+                </div>
+            </details>
         `;
-    }).join('');
-    
+    });
+
+    container.innerHTML = html;
+
     // Apply search filter if there is active text in search input
     const searchInput = document.getElementById('addressTabSearch');
     if (searchInput && searchInput.value.trim() !== '') {
@@ -1574,31 +1632,88 @@ function applyAddressSearch(addrInput) {
 
 function filterAddressTab(inputEl) {
     const val = inputEl.value.toLowerCase().trim();
-    const cards = document.querySelectorAll('#addressList .address-card');
     
-    cards.forEach(card => {
-        const addrText = card.getAttribute('data-address-text') || '';
-        const machines = card.querySelectorAll('.machine-pill');
-        let cardHasMatch = addrText.includes(val);
-        let matchingMachinesCount = 0;
+    // Get all city collapsibles
+    const cities = document.querySelectorAll('#addressList .addr-city-collapsible');
+    
+    cities.forEach(city => {
+        let cityHasVisibleBank = false;
+        const banks = city.querySelectorAll('.addr-bank-collapsible');
         
-        machines.forEach(mach => {
-            const machText = mach.getAttribute('data-machine-text') || '';
-            const machMatches = machText.includes(val);
+        banks.forEach(bank => {
+            let bankHasVisibleAddress = false;
+            const cards = bank.querySelectorAll('.address-card');
             
-            if (val === '' || machMatches || addrText.includes(val)) {
-                mach.style.display = 'flex';
-                matchingMachinesCount++;
+            cards.forEach(card => {
+                const addrText = card.getAttribute('data-address-text') || '';
+                const details = card.querySelector('.address-card-details');
+                const machines = card.querySelectorAll('.machine-pill');
+                
+                let cardHasMatch = addrText.includes(val);
+                let matchingMachinesCount = 0;
+                
+                machines.forEach(mach => {
+                    const machText = mach.getAttribute('data-machine-text') || '';
+                    const machMatches = machText.includes(val);
+                    
+                    if (val === '' || machMatches || addrText.includes(val)) {
+                        mach.style.display = 'flex';
+                        if (val !== '' && machMatches) {
+                            matchingMachinesCount++;
+                        }
+                    } else {
+                        mach.style.display = 'none';
+                    }
+                });
+                
+                // Show the card if the card address info matches OR if at least one machine matches
+                if (val === '' || cardHasMatch || matchingMachinesCount > 0) {
+                    card.style.display = 'block';
+                    bankHasVisibleAddress = true;
+                    
+                    // If we are searching and there is a match in this card, open the card details
+                    if (val !== '') {
+                        if (details) {
+                            details.setAttribute('open', '');
+                        }
+                    } else {
+                        // Clear search - close all address details
+                        if (details) {
+                            details.removeAttribute('open');
+                        }
+                    }
+                } else {
+                    card.style.display = 'none';
+                    if (details) {
+                        details.removeAttribute('open');
+                    }
+                }
+            });
+            
+            if (val === '' || bankHasVisibleAddress) {
+                bank.style.display = 'block';
+                cityHasVisibleBank = true;
+                if (val !== '') {
+                    bank.setAttribute('open', '');
+                } else {
+                    bank.removeAttribute('open');
+                }
             } else {
-                mach.style.display = 'none';
+                bank.style.display = 'none';
+                bank.removeAttribute('open');
             }
         });
         
-        // Show the card if the card address info matches OR if at least one machine matches
-        if (val === '' || cardHasMatch || matchingMachinesCount > 0) {
-            card.style.display = 'block';
+        if (val === '' || cityHasVisibleBank) {
+            city.style.display = 'block';
+            if (val !== '') {
+                city.setAttribute('open', '');
+            } else {
+                city.removeAttribute('open');
+            }
         } else {
-            card.style.display = 'none';
+            city.style.display = 'none';
+            city.removeAttribute('open');
         }
     });
 }

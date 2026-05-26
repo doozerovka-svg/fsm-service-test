@@ -1315,3 +1315,31 @@ details[open] > summary .details-indicator {
     align-items: center;
     justify-content: center;
 }
+
+/* =========================================================================
+   ADDRESS TAB NESTING COLLAPSIBLES
+   ========================================================================= */
+.addr-city-collapsible {
+    border: 1px solid #b2ebf2;
+    margin-bottom: 10px;
+}
+
+.addr-city-collapsible > summary {
+    background: #e0f7fa;
+    color: #006064;
+    font-size: 15px;
+    padding: 12px 15px;
+}
+
+.addr-bank-collapsible {
+    margin: 6px 0;
+    border: 1px solid #dee2e6;
+    box-shadow: none;
+}
+
+.addr-bank-collapsible > summary {
+    background: #f8f9fa;
+    color: #495057;
+    font-size: 14px;
+    padding: 10px 12px;
+}
