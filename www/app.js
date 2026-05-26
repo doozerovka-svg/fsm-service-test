@@ -36,6 +36,34 @@ db.addresses = db.addresses || [];
 db.machines = db.machines || [];
 db.history = db.history || [];
 
+// Deduplicate array of objects by their 'id' property, merging contents
+function deduplicateById(arr) {
+    if (!Array.isArray(arr)) return [];
+    const map = new Map();
+    arr.forEach(item => {
+        if (!item || item.id === undefined || item.id === null) return;
+        const id = String(item.id);
+        const existing = map.get(id);
+        if (!existing) {
+            map.set(id, { ...item });
+        } else {
+            const merged = { ...existing };
+            Object.keys(item).forEach(k => {
+                if (item[k] !== undefined && item[k] !== null && item[k] !== '') {
+                    merged[k] = item[k];
+                }
+            });
+            map.set(id, merged);
+        }
+    });
+    return Array.from(map.values()).map(item => {
+        if (typeof item.id === 'string' && !isNaN(item.id)) {
+            item.id = Number(item.id);
+        }
+        return item;
+    });
+}
+
 // Helper to convert Firebase objects back to JS arrays
 function ensureArray(val) {
     if (!val) return [];
@@ -47,6 +75,11 @@ function ensureArray(val) {
     }
     return [];
 }
+
+// Run initial deduplication of local storage database
+db.addresses = deduplicateById(ensureArray(db.addresses));
+db.machines = deduplicateById(ensureArray(db.machines));
+db.history = deduplicateById(ensureArray(db.history));
 
 // Initialize app UI on load
 document.addEventListener('DOMContentLoaded', () => {
@@ -146,9 +179,14 @@ function initializeFirebase() {
                 db.routes = ensureArray(db.routes);
                 db.employees = ensureArray(db.employees);
                 db.cities = ensureArray(db.cities);
-                db.addresses = ensureArray(db.addresses);
-                db.machines = ensureArray(db.machines);
-                db.history = ensureArray(db.history);
+                
+                const rawAddr = ensureArray(db.addresses);
+                const rawMach = ensureArray(db.machines);
+                const rawHist = ensureArray(db.history);
+                
+                db.addresses = deduplicateById(rawAddr);
+                db.machines = deduplicateById(rawMach);
+                db.history = deduplicateById(rawHist);
                 
                 db.machines.forEach(m => { 
                     m.characteristics = ensureArray(m.characteristics); 
@@ -159,6 +197,14 @@ function initializeFirebase() {
                 
                 localStorage.setItem('fsm_db_v11', JSON.stringify(db));
                 renderAll();
+                
+                // If duplicates were cleaned up, sync the cleaned database back to the cloud
+                if (rawAddr.length !== db.addresses.length || 
+                    rawMach.length !== db.machines.length || 
+                    rawHist.length !== db.history.length) {
+                    console.log("Cleaned up duplicates from Firebase. Syncing clean database back.");
+                    saveData();
+                }
             }
             
             const overlay = document.getElementById('loadingOverlay');
@@ -431,7 +477,7 @@ function addAddress() {
 }
 
 function openEditAddress(id) {
-    const a = db.addresses.find(x => x.id === id);
+    const a = db.addresses.find(x => x.id == id);
     if (!a) return;
     
     document.getElementById('editAddrId').value = id;
@@ -448,7 +494,7 @@ function openEditAddress(id) {
 function saveEditAddress() {
     doubleConfirm('СОХРАНИТЬ ИЗМЕНЕНИЯ в адресе', () => {
         const id = parseInt(document.getElementById('editAddrId').value);
-        const a = db.addresses.find(x => x.id === id);
+        const a = db.addresses.find(x => x.id == id);
         if (a) {
             a.bank = document.getElementById('editAddrBank').value;
             a.address = document.getElementById('editAddrText').value.trim();
@@ -463,7 +509,7 @@ function saveEditAddress() {
 
 function deleteAddress(id) {
     doubleConfirm('УДАЛИТЬ этот адрес', () => {
-        db.addresses = db.addresses.filter(x => x.id !== id);
+        db.addresses = db.addresses.filter(x => x.id != id);
         saveData('addresses/' + id, null);
         showToast('🗑️ Адрес удален');
     });
@@ -473,7 +519,7 @@ function deleteAddress(id) {
 // MACHINE MANAGEMENT
 // =========================================================================
 function openAddMachineModal(addressId) {
-    const a = db.addresses.find(x => x.id === addressId);
+    const a = db.addresses.find(x => x.id == addressId);
     if (!a) return;
     
     document.getElementById('addMachAddressId').value = addressId;
@@ -519,9 +565,9 @@ function saveNewMachine() {
 }
 
 function openMachineDetails(machineId) {
-    const m = db.machines.find(x => x.id === machineId);
+    const m = db.machines.find(x => x.id == machineId);
     if (!m) return;
-    const a = db.addresses.find(x => x.id === m.addressId);
+    const a = db.addresses.find(x => x.id == m.addressId);
     
     document.getElementById('detMachId').value = m.id;
     document.getElementById('detMachTitle').innerText = `📠 ${m.model}`;
@@ -543,7 +589,7 @@ function openMachineDetails(machineId) {
 function saveEditMachine() {
     doubleConfirm('СОХРАНИТЬ ИЗМЕНЕНИЯ в данных машины', () => {
         const id = parseInt(document.getElementById('detMachId').value);
-        const m = db.machines.find(x => x.id === id);
+        const m = db.machines.find(x => x.id == id);
         if (!m) return;
         
         const newSerial = document.getElementById('detMachSerial').value.trim();
@@ -552,7 +598,7 @@ function saveEditMachine() {
         // Check if Serial was updated - Add log
         if (m.serial !== newSerial) {
             db.history.forEach(h => {
-                if (h.machineId === m.id && !h.machineSerial) {
+                if (h.machineId == m.id && !h.machineSerial) {
                     h.machineSerial = m.serial;
                 }
             });
@@ -572,9 +618,9 @@ function saveEditMachine() {
         }
 
         // Check if location was updated - Add log
-        if (m.addressId !== newAddressId) {
-            const oldAddr = db.addresses.find(a => a.id === m.addressId);
-            const newAddr = db.addresses.find(a => a.id === newAddressId);
+        if (m.addressId != newAddressId) {
+            const oldAddr = db.addresses.find(a => a.id == m.addressId);
+            const newAddr = db.addresses.find(a => a.id == newAddressId);
             const oldAddrText = oldAddr ? `${oldAddr.bank}, ${oldAddr.address}` : 'Неизвестно';
             const newAddrText = newAddr ? `${newAddr.bank}, ${newAddr.address}` : 'Неизвестно';
             
@@ -610,7 +656,7 @@ function saveEditMachine() {
 function deleteMachine() {
     doubleConfirm('УДАЛИТЬ эту машину', () => {
         const id = parseInt(document.getElementById('detMachId').value);
-        db.machines = db.machines.filter(x => x.id !== id);
+        db.machines = db.machines.filter(x => x.id != id);
         saveData('machines/' + id, null);
         closeAllModals();
         showToast('🗑️ Машина удалена');
@@ -619,7 +665,7 @@ function deleteMachine() {
 
 // Characteristics lists
 function renderCharacteristicsList(machineId) {
-    const m = db.machines.find(x => x.id === machineId);
+    const m = db.machines.find(x => x.id == machineId);
     const list = document.getElementById('detCharsList');
     if (!m) return;
     
@@ -644,7 +690,7 @@ function addCharacteristic() {
     const text = document.getElementById('detNewCharText').value.trim();
     if (!text) return;
     
-    const m = db.machines.find(x => x.id === machineId);
+    const m = db.machines.find(x => x.id == machineId);
     if (m) {
         if (!m.characteristics) m.characteristics = [];
         const newChar = { id: Date.now(), text };
@@ -657,9 +703,9 @@ function addCharacteristic() {
 }
 
 function editCharacteristic(machineId, charId) {
-    const m = db.machines.find(x => x.id === machineId);
+    const m = db.machines.find(x => x.id == machineId);
     if (!m) return;
-    const c = m.characteristics.find(x => x.id === charId);
+    const c = m.characteristics.find(x => x.id == charId);
     if (!c) return;
     
     customPrompt("Редактировать характеристику:", c.text, (newText) => {
@@ -676,9 +722,9 @@ function editCharacteristic(machineId, charId) {
 
 function deleteCharacteristic(machineId, charId) {
     doubleConfirm('УДАЛИТЬ эту характеристику', () => {
-        const m = db.machines.find(x => x.id === machineId);
+        const m = db.machines.find(x => x.id == machineId);
         if (m) {
-            m.characteristics = m.characteristics.filter(x => x.id !== charId);
+            m.characteristics = m.characteristics.filter(x => x.id != charId);
             saveData('machines/' + m.id, m);
             renderCharacteristicsList(machineId);
             showToast('🗑️ Характеристика удалена');
@@ -696,9 +742,9 @@ function isCurrentMonth(dateString) {
 }
 
 function openServiceModal(machineId) {
-    const m = db.machines.find(x => x.id === machineId);
+    const m = db.machines.find(x => x.id == machineId);
     if (!m) return;
-    const a = db.addresses.find(x => x.id === m.addressId);
+    const a = db.addresses.find(x => x.id == m.addressId);
     if (!a) return;
     
     document.getElementById('modalMachineId').value = machineId;
@@ -727,13 +773,13 @@ function saveService() {
     let tasks = [];
     document.querySelectorAll('.work-check:checked').forEach(cb => tasks.push(cb.value));
 
-    const m = db.machines.find(x => x.id === machineId);
+    const m = db.machines.find(x => x.id == machineId);
     if (!m) return;
 
     // Auto-Counter Filling logic (recovers last entered number in history)
     if (!counter || counter === '') {
         const sortedHistory = [...db.history].sort((a, b) => new Date(b.date) - new Date(a.date));
-        const prevRecord = sortedHistory.find(h => h.machineId === machineId && h.counter && h.counter.trim() !== '');
+        const prevRecord = sortedHistory.find(h => h.machineId == machineId && h.counter && h.counter.trim() !== '');
         if (prevRecord) {
             counter = prevRecord.counter;
         }
@@ -770,7 +816,7 @@ function saveService() {
 }
 
 function openEditHistory(id) {
-    const h = db.history.find(x => x.id === id);
+    const h = db.history.find(x => x.id == id);
     if (!h) return;
     
     document.getElementById('editHistId').value = id;
@@ -792,7 +838,7 @@ function openEditHistory(id) {
 function saveEditHistory() {
     doubleConfirm('СОХРАНИТЬ ИЗМЕНЕНИЯ в записи истории', () => {
         const id = parseInt(document.getElementById('editHistId').value);
-        const h = db.history.find(x => x.id === id);
+        const h = db.history.find(x => x.id == id);
         if (h) {
             const dateVal = document.getElementById('editHistDate').value;
             let isoDate;
@@ -824,7 +870,7 @@ function saveEditHistory() {
 
 function deleteHistory(id) {
     doubleConfirm('УДАЛИТЬ эту запись обслуживания', () => {
-        db.history = db.history.filter(x => x.id !== id);
+        db.history = db.history.filter(x => x.id != id);
         saveData('history/' + id, null);
         showToast('🗑️ Запись истории удалена');
     });
@@ -833,13 +879,13 @@ function deleteHistory(id) {
 // =========================================================================
 // DATA POPULATION HELPERS
 // =========================================================================
-function populateDropdown(inputId, itemsArray, selectedValue = '') {
+function populateDropdown(inputId, itemsArray, selectedValue = null) {
     const wrapper = document.getElementById('wrapper-' + inputId);
     const hiddenInput = document.getElementById(inputId);
     if (!wrapper || !hiddenInput) return;
 
-    // Use currently selected value from DOM if selectedValue is not specified
-    const currentValue = selectedValue || hiddenInput.value;
+    // Use currently selected value from DOM if selectedValue is not specified (is null)
+    const currentValue = (selectedValue !== null) ? selectedValue : hiddenInput.value;
     let displayValue = 'Выберите...';
     
     if (currentValue && itemsArray.includes(currentValue)) {
@@ -874,7 +920,7 @@ function populateAddressDropdown(inputId, selectedId = 0) {
 
     // If selectedId is 0 or not passed, look at current hidden input value
     const currentId = parseInt(selectedId) || parseInt(hiddenInput.value) || 0;
-    let selectedAddr = db.addresses.find(a => a.id === currentId);
+    let selectedAddr = db.addresses.find(a => a.id == currentId);
     let displayValue = 'Выберите адрес...';
     let resolvedValue = '';
     
@@ -1063,7 +1109,7 @@ function renderDashboard() {
             const cityAddresses = routeAddresses.filter(a => (a.city || db.cities[0] || 'Кишинев') === city);
             
             // Filter addresses that actually have machines
-            const activeCityAddresses = cityAddresses.filter(addr => db.machines.some(m => m.addressId === addr.id));
+            const activeCityAddresses = cityAddresses.filter(addr => db.machines.some(m => m.addressId == addr.id));
             if (activeCityAddresses.length === 0) return;
             
             let cityTarget = 0;
@@ -1071,7 +1117,7 @@ function renderDashboard() {
             let cityAddressesHtml = '';
             
             activeCityAddresses.forEach(addr => {
-                const addrMachines = db.machines.filter(m => m.addressId === addr.id);
+                const addrMachines = db.machines.filter(m => m.addressId == addr.id);
                 if (addrMachines.length === 0) return;
                 
                 let addrHtml = '';
@@ -1080,7 +1126,7 @@ function renderDashboard() {
                 
                 addrMachines.forEach(mach => {
                     // Find all service records for this machine in the current month
-                    const thisMonthServices = db.history.filter(h => h.machineId === mach.id && isCurrentMonth(h.date));
+                    const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date));
                     const completedCount = thisMonthServices.length;
                     
                     // Add to calculations
@@ -1109,7 +1155,7 @@ function renderDashboard() {
                             badgeText = `В процессе: ${completedCount}/${targetCount}`;
                         } else {
                             // Check if overdue
-                            const machineHistory = db.history.filter(h => h.machineId === mach.id);
+                            const machineHistory = db.history.filter(h => h.machineId == mach.id);
                             if (machineHistory.length > 0) {
                                 const lastService = new Date(machineHistory[0].date);
                                 const diffDays = Math.ceil(Math.abs(now - lastService) / (1000 * 60 * 60 * 24));
@@ -1226,7 +1272,7 @@ function renderDashboard() {
         const percent = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : (totalCompleted > 0 ? 100 : 0);
         
         html += `
-            <details class="dash-route" ${routeIndex === 0 ? 'open' : ''}>
+            <details class="dash-route">
                 <summary>
                     <div style="flex:1; display:flex; flex-direction:column; gap:4px; padding-right:12px;">
                         <span>🚗 ${route}</span>
@@ -1266,7 +1312,7 @@ function renderAddresses() {
     }
     
     container.innerHTML = db.addresses.map(a => {
-        const addrMachines = db.machines.filter(m => m.addressId === a.id);
+        const addrMachines = db.machines.filter(m => m.addressId == a.id);
         
         let machHtml = '';
         if (addrMachines.length === 0) {
@@ -1383,8 +1429,8 @@ function renderHistory() {
             html += `<div class="day-header">${currentDayStr}</div>`;
         }
         
-        const m = db.machines.find(x => x.id === h.machineId);
-        const a = m ? db.addresses.find(x => x.id === m.addressId) : null;
+        const m = db.machines.find(x => x.id == h.machineId);
+        const a = m ? db.addresses.find(x => x.id == m.addressId) : null;
         const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
         
         const serial = h.machineSerial || (m ? m.serial : 'Неизвестно');

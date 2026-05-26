@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=11.7">
+    <link rel="stylesheet" href="styles.css?v=11.8">
 </head>
 <body>
 
@@ -38,6 +38,7 @@
         </div>
         <h3 id="loadingTitle">Синхронизация с базой...</h3>
         <p id="loadingText">Пожалуйста, подождите</p>
+        <button onclick="if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{for(let r of regs)r.unregister();caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).then(()=>{window.location.reload(true);});});}else{window.location.reload(true);}" style="margin-top: 20px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 8px 16px; border-radius: var(--radius-sm); font-size: 11px; cursor: pointer; font-family: inherit;">Сбросить кэш и обновить</button>
     </div>
 
     <!-- Sticky Header -->
@@ -502,7 +503,7 @@
     </nav>
 
     <!-- App Script logic -->
-    <script src="app.js?v=11.7"></script>
+    <script src="app.js?v=11.8"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>
