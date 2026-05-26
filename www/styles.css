@@ -1284,3 +1284,34 @@ details[open] > summary .details-indicator {
     color: #ffffff;
     font-weight: 500;
 }
+
+/* =========================================================================
+   BARCODE & QR CODE SCANNER MODAL STYLES
+   ========================================================================= */
+.scanner-modal-content {
+    max-width: 450px !important;
+    padding: 20px !important;
+    border-radius: var(--radius-lg);
+}
+
+#reader {
+    width: 100%;
+    margin: 15px auto;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: #000;
+}
+
+#reader video {
+    width: 100% !important;
+    height: auto !important;
+    border-radius: var(--radius-md);
+    object-fit: cover;
+}
+
+.square-btn {
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

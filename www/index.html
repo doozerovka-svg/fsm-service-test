@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=11.8">
+    <link rel="stylesheet" href="styles.css?v=11.9">
 </head>
 <body>
 
@@ -104,7 +104,10 @@
             </div>
             
             <div class="form-group" style="margin-bottom: 12px;">
-                <input type="text" id="addressTabSearch" placeholder="🔍 Поиск по адресам и машинам (модель, S/N, адрес)..." oninput="filterAddressTab(this)" style="margin-bottom: 0; padding: 10px; font-size: 15px;">
+                <div class="flex-row" style="gap: 8px; align-items: center;">
+                    <input type="text" id="addressTabSearch" placeholder="🔍 Поиск по адресам и машинам (модель, S/N, адрес)..." oninput="filterAddressTab(this)" style="margin-bottom: 0; padding: 10px; font-size: 15px; flex: 1;">
+                    <button class="btn-primary tooltip" onclick="startScanner('addressTabSearch', () => filterAddressTab(document.getElementById('addressTabSearch')))" title="Сканировать штрихкод" style="padding: 10px 14px; font-size: 16px; margin: 0; min-height: 46px; min-width: 46px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm);">📸</button>
+                </div>
             </div>
             
             <div id="addressList" class="details-list"></div>
@@ -181,6 +184,21 @@
 
     <!-- ================= МОДАЛЬНЫЕ ОКНА ================= -->
 
+    <!-- Модальное окно: Сканер штрихкодов и QR-кодов -->
+    <div id="scannerModal" class="modal" style="z-index: 1100;">
+        <div class="modal-backdrop" onclick="stopScanner()"></div>
+        <div class="modal-content" style="max-width: 450px; padding: 20px;">
+            <span class="close-btn" onclick="stopScanner()">&times;</span>
+            <h3 style="margin-top: 0; margin-bottom: 10px;">Сканирование штрихкода / S/N</h3>
+            <div id="reader" style="width: 100%; border-radius: var(--radius-md); overflow: hidden; background: #000; position: relative;"></div>
+            <div class="form-group" style="margin-top: 15px; margin-bottom: 15px;">
+                <label for="scannerCameraSelect">Выберите камеру</label>
+                <select id="scannerCameraSelect" class="custom-input" style="width: 100%; box-sizing: border-box;" onchange="switchCamera(this.value)"></select>
+            </div>
+            <button class="btn-danger btn-full" onclick="stopScanner()">Отмена</button>
+        </div>
+    </div>
+
     <!-- Модальное окно: Подтверждение -->
     <div id="confirmModal" class="modal">
         <div class="modal-backdrop" onclick="closeConfirm()"></div>
@@ -223,14 +241,17 @@
                 </div>
             </div>
             
-            <div class="flex-row">
-                <div class="form-group">
+            <div class="flex-row" style="gap: 8px;">
+                <div class="form-group" style="flex: 1; margin-bottom: 15px;">
                     <label for="addMachSerial">Серийный № (S/N)</label>
-                    <input type="text" id="addMachSerial" placeholder="S/N">
+                    <div class="flex-row" style="gap: 4px; align-items: center;">
+                        <input type="text" id="addMachSerial" placeholder="S/N" style="margin: 0; flex: 1;">
+                        <button class="btn-primary" onclick="startScanner('addMachSerial')" style="padding: 8px 12px; font-size: 14px; margin: 0; min-height: 42px; border-radius: var(--radius-sm);">📸</button>
+                    </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="flex: 1; margin-bottom: 15px;">
                     <label for="addMachInv">Инвентарный №</label>
-                    <input type="text" id="addMachInv" placeholder="Inv №">
+                    <input type="text" id="addMachInv" placeholder="Inv №" style="margin: 0; width: 100%;">
                 </div>
             </div>
             
@@ -274,14 +295,17 @@
                 </div>
             </div>
             
-            <div class="flex-row">
-                <div class="form-group">
+            <div class="flex-row" style="gap: 8px;">
+                <div class="form-group" style="flex: 1; margin-bottom: 15px;">
                     <label for="detMachSerial">Серийный № (S/N)</label>
-                    <input type="text" id="detMachSerial">
+                    <div class="flex-row" style="gap: 4px; align-items: center;">
+                        <input type="text" id="detMachSerial" style="margin: 0; flex: 1;">
+                        <button class="btn-primary" onclick="startScanner('detMachSerial')" style="padding: 8px 12px; font-size: 14px; margin: 0; min-height: 42px; border-radius: var(--radius-sm);">📸</button>
+                    </div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="flex: 1; margin-bottom: 15px;">
                     <label for="detMachInv">Инвентарный №</label>
-                    <input type="text" id="detMachInv">
+                    <input type="text" id="detMachInv" style="margin: 0; width: 100%;">
                 </div>
             </div>
             
@@ -503,7 +527,8 @@
     </nav>
 
     <!-- App Script logic -->
-    <script src="app.js?v=11.8"></script>
+    <script src="html5-qrcode.min.js"></script>
+    <script src="app.js?v=11.9"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>

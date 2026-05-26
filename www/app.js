@@ -1625,4 +1625,124 @@ window.applyAddressSearch = applyAddressSearch;
 window.filterAddressTab = filterAddressTab;
 window.filterAddressCardMachines = filterAddressCardMachines;
 
+// =========================================================================
+// BARCODE & QR CODE SCANNER CONTROLLER
+// =========================================================================
+let html5QrCode = null;
+let scannerTargetInputId = null;
+let scannerSuccessCallback = null;
+
+async function startScanner(targetInputId, onScanSuccessCallback = null) {
+    scannerTargetInputId = targetInputId;
+    scannerSuccessCallback = onScanSuccessCallback;
+
+    document.getElementById('scannerModal').style.display = 'flex';
+    const cameraSelect = document.getElementById('scannerCameraSelect');
+    cameraSelect.innerHTML = '<option value="">Загрузка камер...</option>';
+
+    try {
+        const devices = await Html5Qrcode.getCameras();
+        if (devices && devices.length > 0) {
+            cameraSelect.innerHTML = devices.map((device, idx) => {
+                const label = device.label || `Камера ${idx + 1}`;
+                const isBack = label.toLowerCase().includes('back') || label.toLowerCase().includes('задняя') || label.toLowerCase().includes('environment');
+                return `<option value="${device.id}" ${isBack ? 'selected' : ''}>${label}</option>`;
+            }).join('');
+
+            html5QrCode = new Html5Qrcode("reader");
+            const cameraId = cameraSelect.value || devices[0].id;
+            await startCameraStream(cameraId);
+        } else {
+            showToast('⚠️ Камеры не найдены на устройстве');
+            stopScanner();
+        }
+    } catch (err) {
+        console.error("Camera access failed:", err);
+        showToast('❌ Нет доступа к камере: ' + err.message);
+        stopScanner();
+    }
+}
+
+async function startCameraStream(cameraId) {
+    if (!html5QrCode) return;
+
+    try {
+        await html5QrCode.start(
+            cameraId,
+            {
+                fps: 10,
+                qrbox: { width: 250, height: 150 }
+            },
+            onScanSuccess,
+            onScanFailure
+        );
+    } catch (err) {
+        showToast('❌ Ошибка запуска трансляции: ' + err.message);
+    }
+}
+
+async function switchCamera(cameraId) {
+    if (html5QrCode) {
+        try {
+            await html5QrCode.stop();
+            await startCameraStream(cameraId);
+        } catch (err) {
+            console.error("Failed to switch camera:", err);
+        }
+    }
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+    if (navigator.vibrate) {
+        navigator.vibrate(100);
+    } else if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) {
+        window.Capacitor.Plugins.Haptics.impact({ style: 'LIGHT' }).catch(() => {});
+    }
+
+    showToast('✅ Код успешно отсканирован!');
+    
+    const targetInput = document.getElementById(scannerTargetInputId);
+    if (targetInput) {
+        targetInput.value = decodedText;
+        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+        targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    if (scannerSuccessCallback) {
+        try {
+            scannerSuccessCallback(decodedText);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    stopScanner();
+}
+
+function onScanFailure(error) {
+    // Quietly ignore scan failures as they occur on every frame
+}
+
+async function stopScanner() {
+    document.getElementById('scannerModal').style.display = 'none';
+    
+    if (html5QrCode) {
+        try {
+            await html5QrCode.stop();
+        } catch (err) {
+            // Ignore stop errors if not active
+        } finally {
+            html5QrCode = null;
+        }
+    }
+    
+    scannerTargetInputId = null;
+    scannerSuccessCallback = null;
+}
+
+// Expose scanner functions globally
+window.startScanner = startScanner;
+window.stopScanner = stopScanner;
+window.switchCamera = switchCamera;
+
 
