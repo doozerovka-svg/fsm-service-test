@@ -1625,6 +1625,84 @@ function renderHistory() {
 // =========================================================================
 // SEARCH & FILTER FUNCTIONALITY FOR DASHBOARD (CHECK-LIST)
 // =========================================================================
+function filterDashboard(inputEl) {
+    const val = inputEl.value.toLowerCase().trim();
+    const routes = document.querySelectorAll('#dashboardList .dash-route');
+    
+    routes.forEach(routeEl => {
+        const routeSummarySpan = routeEl.querySelector('summary span');
+        const routeTitle = routeSummarySpan ? routeSummarySpan.innerText.toLowerCase() : '';
+        const routeMatchesSelf = routeTitle.includes(val);
+        let routeHasVisibleContent = false;
+        
+        const cities = routeEl.querySelectorAll('.dash-city');
+        cities.forEach(cityEl => {
+            const citySummarySpan = cityEl.querySelector('summary span');
+            const cityTitle = citySummarySpan ? citySummarySpan.innerText.toLowerCase() : '';
+            const cityMatchesSelf = routeMatchesSelf || cityTitle.includes(val);
+            let cityHasVisibleContent = false;
+            
+            const addresses = cityEl.querySelectorAll('.dash-address');
+            addresses.forEach(addrEl => {
+                const addrSummarySpan = addrEl.querySelector('summary span');
+                const addrTitle = addrSummarySpan ? addrSummarySpan.innerText.toLowerCase() : '';
+                const addrText = addrEl.getAttribute('data-address-text') || '';
+                const addrMatchesSelf = routeMatchesSelf || cityMatchesSelf || addrTitle.includes(val) || addrText.includes(val);
+                let addressHasVisibleContent = false;
+                
+                const machines = addrEl.querySelectorAll('.address-machines-list .list-item');
+                machines.forEach(mach => {
+                    const machText = mach.getAttribute('data-machine-text') || '';
+                    if (val === '' || addrMatchesSelf || machText.includes(val)) {
+                        mach.style.display = 'flex';
+                        addressHasVisibleContent = true;
+                    } else {
+                        mach.style.display = 'none';
+                    }
+                });
+                
+                if (val === '' || addressHasVisibleContent) {
+                    addrEl.style.display = 'block';
+                    cityHasVisibleContent = true;
+                    if (val !== '') {
+                        addrEl.setAttribute('open', '');
+                    } else {
+                        addrEl.removeAttribute('open');
+                    }
+                } else {
+                    addrEl.style.display = 'none';
+                    addrEl.removeAttribute('open');
+                }
+            });
+            
+            if (val === '' || cityHasVisibleContent) {
+                cityEl.style.display = 'block';
+                routeHasVisibleContent = true;
+                if (val !== '') {
+                    cityEl.setAttribute('open', '');
+                } else {
+                    cityEl.setAttribute('open', '');
+                }
+            } else {
+                cityEl.style.display = 'none';
+                cityEl.removeAttribute('open');
+            }
+        });
+        
+        if (val === '' || routeHasVisibleContent) {
+            routeEl.style.display = 'block';
+            if (val !== '') {
+                routeEl.setAttribute('open', '');
+            } else {
+                routeEl.removeAttribute('open');
+            }
+        } else {
+            routeEl.style.display = 'none';
+            routeEl.removeAttribute('open');
+        }
+    });
+}
+
 function applyRouteSearch(routeInput) {
     const routeVal = routeInput.value.toLowerCase().trim();
     const routeDetails = routeInput.closest('.details-content');
@@ -1946,5 +2024,6 @@ window.startScanner = startScanner;
 window.stopScanner = stopScanner;
 window.switchCamera = switchCamera;
 window.toggleHistoryChecked = toggleHistoryChecked;
+window.filterDashboard = filterDashboard;
 
 
