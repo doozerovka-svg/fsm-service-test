@@ -1261,25 +1261,17 @@ function renderDashboard() {
                     `;
                 });
                 
-                // Calculate address badges for H1 and H2
-                let addrBadgesHtml = '';
-                
-                if (addrTargetH1 > 0) {
-                    const addrBadgeClassH1 = addrCompletedH1 >= addrTargetH1 ? 'done' : 'pending';
-                    addrBadgesHtml += `<span class="badge ${addrBadgeClassH1}">I: ${addrCompletedH1}/${addrTargetH1}</span>`;
-                }
-                if (addrTargetH2 > 0) {
-                    const addrBadgeClassH2 = addrCompletedH2 >= addrTargetH2 ? 'done' : 'pending';
-                    addrBadgesHtml += `<span class="badge ${addrBadgeClassH2}" style="margin-left: 4px;">II: ${addrCompletedH2}/${addrTargetH2}</span>`;
-                }
-                if (addrTargetH1 === 0 && addrTargetH2 === 0) {
+                // Calculate address progress text inline
+                let addrProgressText = '';
+                if (addrTargetH1 > 0 || addrTargetH2 > 0) {
+                    const parts = [];
+                    if (addrTargetH1 > 0) parts.push(`I: ${addrCompletedH1}/${addrTargetH1}`);
+                    if (addrTargetH2 > 0) parts.push(`II: ${addrCompletedH2}/${addrTargetH2}`);
+                    addrProgressText = parts.join(' · ');
+                } else {
                     const actualComp = db.machines.filter(m => m.addressId == addr.id)
                                           .reduce((sum, m) => sum + db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date)).length, 0);
-                    if (actualComp > 0) {
-                        addrBadgesHtml += `<span class="badge done">Сделано: ${actualComp}</span>`;
-                    } else {
-                        addrBadgesHtml += `<span class="badge info">По запросу</span>`;
-                    }
+                    addrProgressText = actualComp > 0 ? `Выполнено: ${actualComp}` : 'По запросу';
                 }
                 
                 cityTargetH1 += addrTargetH1;
@@ -1294,12 +1286,10 @@ function renderDashboard() {
                 
                 cityAddressesHtml += `
                     <details class="dash-address" data-address-text="${addr.bank.toLowerCase()} ${addr.address.toLowerCase()}">
-                        <summary>
+                        <summary style="display: flex; align-items: center; justify-content: space-between;">
                             <span>📍 ${addr.bank}, ${addr.address}</span>
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <div style="display: flex; gap: 4px; align-items: center;">
-                                    ${addrBadgesHtml}
-                                </div>
+                            <div style="display:flex; align-items:center; gap:8px; margin-left: auto;">
+                                <span style="font-size: 11px; color: var(--text-muted); font-weight: 500; margin-right: 4px;">${addrProgressText}</span>
                                 <span class="details-indicator">▼</span>
                             </div>
                         </summary>
@@ -1316,37 +1306,27 @@ function renderDashboard() {
                 `;
             });
             
-            // Calculate City badges for H1 and H2
-            let cityBadgesHtml = '';
-            
-            if (cityTargetH1 > 0) {
-                const cityBadgeClassH1 = cityCompletedH1 >= cityTargetH1 ? 'done' : 'pending';
-                cityBadgesHtml += `<span class="badge ${cityBadgeClassH1}">I: ${cityCompletedH1}/${cityTargetH1}</span>`;
-            }
-            if (cityTargetH2 > 0) {
-                const cityBadgeClassH2 = cityCompletedH2 >= cityTargetH2 ? 'done' : 'pending';
-                cityBadgesHtml += `<span class="badge ${cityBadgeClassH2}" style="margin-left: 4px;">II: ${cityCompletedH2}/${cityTargetH2}</span>`;
-            }
-            if (cityTargetH1 === 0 && cityTargetH2 === 0) {
+            // Calculate City progress text inline
+            let cityProgressText = '';
+            if (cityTargetH1 > 0 || cityTargetH2 > 0) {
+                const parts = [];
+                if (cityTargetH1 > 0) parts.push(`I: ${cityCompletedH1}/${cityTargetH1}`);
+                if (cityTargetH2 > 0) parts.push(`II: ${cityCompletedH2}/${cityTargetH2}`);
+                cityProgressText = parts.join(' · ');
+            } else {
                 const actualComp = cityAddresses.reduce((sum, addr) => {
                     return sum + db.machines.filter(m => m.addressId == addr.id)
                                   .reduce((sum2, m) => sum2 + db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date)).length, 0);
                 }, 0);
-                if (actualComp > 0) {
-                    cityBadgesHtml += `<span class="badge done">Сделано: ${actualComp}</span>`;
-                } else {
-                    cityBadgesHtml += `<span class="badge info">По запросу</span>`;
-                }
+                cityProgressText = actualComp > 0 ? `Выполнено: ${actualComp}` : 'По запросу';
             }
             
             routeHtml += `
                 <details class="dash-city" open>
-                    <summary>
+                    <summary style="display: flex; align-items: center; justify-content: space-between;">
                         <span>🏙️ ${city}</span>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <div style="display: flex; gap: 4px; align-items: center;">
-                                ${cityBadgesHtml}
-                            </div>
+                        <div style="display:flex; align-items:center; gap:8px; margin-left: auto;">
+                            <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">${cityProgressText}</span>
                             <span class="details-indicator">▼</span>
                         </div>
                     </summary>

@@ -475,30 +475,37 @@ button:active {
    BADGES & STATUS
    ========================================================================= */
 .badge {
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: bold;
-    color: white;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
     display: inline-flex;
     align-items: center;
+    border: 1px solid transparent;
 }
 
 .badge.done {
-    background-color: var(--success-color);
+    background-color: #e8f5e9;
+    border-color: #c8e6c9;
+    color: #2e7d32;
 }
 
 .badge.pending {
-    background-color: var(--warning-color);
-    color: #333;
+    background-color: #fff8e1;
+    border-color: #ffe082;
+    color: #b78103;
 }
 
 .badge.overdue {
-    background-color: var(--danger-color);
+    background-color: #ffebee;
+    border-color: #ffcdd2;
+    color: #c62828;
 }
 
 .badge.info {
-    background-color: var(--info-color);
+    background-color: #e0f7fa;
+    border-color: #b2ebf2;
+    color: #00838f;
 }
 
 /* =========================================================================
@@ -542,20 +549,24 @@ details[open] > summary .details-indicator {
 
 /* Dashboard City Collapsible */
 .dash-city {
-    margin: 8px 0;
-    border: 1px solid #d1ecf1;
-    box-shadow: none;
+    margin: 12px 0 4px 0 !important;
+    border: none !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 .dash-city > summary {
-    background: #e0f2f1;
-    color: #0c5460;
-    font-size: 14px;
-    padding: 12px;
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    padding: 10px 4px !important;
 }
 
 .dash-city-content {
-    padding: 8px;
+    padding: 4px 0 !important;
 }
 
 /* Collapsible Address Cards in Address Tab */
@@ -604,20 +615,26 @@ details[open] > summary .details-indicator {
 }
 
 .dash-address {
-    margin: 8px 0;
-    border: 1px solid #e2e3e5;
-    box-shadow: none;
+    margin: 4px 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 .dash-address > summary {
-    background: #f8f9fa;
-    color: #383d41;
-    font-size: 14px;
-    padding: 12px;
+    background: transparent !important;
+    color: var(--text-secondary) !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    padding: 8px 4px 8px 16px !important;
+    border-left: 2px solid rgba(0, 86, 179, 0.15) !important;
 }
 
 .dash-address-content {
-    padding: 10px;
+    padding: 8px 8px 8px 16px !important;
+    border-left: 2px solid rgba(0, 86, 179, 0.15) !important;
+    background: transparent !important;
 }
 
 /* =========================================================================
