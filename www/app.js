@@ -1081,6 +1081,7 @@ function renderDictContainer(containerId, type) {
 }
 
 // Render Dashboard Check-list
+// Render Dashboard Check-list
 function renderDashboard() {
     const container = document.getElementById('dashboardList');
     if (!container) return;
@@ -1107,8 +1108,10 @@ function renderDashboard() {
         const routeAddresses = db.addresses.filter(a => a.route === route);
         if (routeAddresses.length === 0) return;
         
-        let totalTarget = 0;
-        let totalCompleted = 0;
+        let totalTargetH1 = 0;
+        let totalCompletedH1 = 0;
+        let totalTargetH2 = 0;
+        let totalCompletedH2 = 0;
         let routeHtml = '';
         
         // Find all unique cities in this route
@@ -1121,8 +1124,10 @@ function renderDashboard() {
             const activeCityAddresses = cityAddresses.filter(addr => db.machines.some(m => m.addressId == addr.id));
             if (activeCityAddresses.length === 0) return;
             
-            let cityTarget = 0;
-            let cityCompleted = 0;
+            let cityTargetH1 = 0;
+            let cityCompletedH1 = 0;
+            let cityTargetH2 = 0;
+            let cityCompletedH2 = 0;
             let cityAddressesHtml = '';
             
             activeCityAddresses.forEach(addr => {
@@ -1130,55 +1135,116 @@ function renderDashboard() {
                 if (addrMachines.length === 0) return;
                 
                 let addrHtml = '';
-                let addrTarget = 0;
-                let addrCompleted = 0;
+                let addrTargetH1 = 0;
+                let addrCompletedH1 = 0;
+                let addrTargetH2 = 0;
+                let addrCompletedH2 = 0;
                 
                 addrMachines.forEach(mach => {
                     // Find all service records for this machine in the current month
                     const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date));
-                    const completedCount = thisMonthServices.length;
                     
-                    // Add to calculations
-                    const targetCount = mach.freq;
-                    addrTarget += targetCount;
-                    addrCompleted += Math.min(completedCount, targetCount);
+                    // Split completed count by H1 (days 1-15) and H2 (days 16+)
+                    const completedH1 = thisMonthServices.filter(h => new Date(h.date).getDate() <= 15).length;
+                    const completedH2 = thisMonthServices.filter(h => new Date(h.date).getDate() > 15).length;
                     
-                    let badgeClass = 'pending';
-                    let badgeText = '';
+                    // Determine H1 and H2 targets
+                    const F = mach.freq;
+                    let targetH1 = 0;
+                    let targetH2 = 0;
                     
-                    if (targetCount === 0) {
-                        // Service by request
-                        if (completedCount > 0) {
-                            badgeClass = 'done';
-                            badgeText = `Выполнено (${completedCount})`;
+                    if (F > 0) {
+                        const baseTarget = Math.floor(F / 2);
+                        const rem = F % 2;
+                        
+                        if (rem === 0) {
+                            targetH1 = baseTarget;
+                            targetH2 = baseTarget;
                         } else {
-                            badgeClass = 'info';
-                            badgeText = 'По запросу';
-                        }
-                    } else {
-                        if (completedCount >= targetCount) {
-                            badgeClass = 'done';
-                            badgeText = 'Выполнено';
-                        } else if (completedCount > 0) {
-                            badgeClass = 'pending';
-                            badgeText = `В процессе: ${completedCount}/${targetCount}`;
-                        } else {
-                            // Check if overdue
-                            const machineHistory = db.history.filter(h => h.machineId == mach.id);
-                            if (machineHistory.length > 0) {
-                                const lastService = new Date(machineHistory[0].date);
-                                const diffDays = Math.ceil(Math.abs(now - lastService) / (1000 * 60 * 60 * 24));
-                                if (diffDays > 35) {
-                                    badgeClass = 'overdue';
-                                    badgeText = 'Просрочено';
-                                } else {
-                                    badgeClass = 'pending';
-                                    badgeText = 'Ожидает ТО';
-                                }
+                            // Odd target (e.g. F=1, F=3)
+                            const excessH1 = Math.max(0, completedH1 - baseTarget);
+                            const excessH2 = Math.max(0, completedH2 - baseTarget);
+                            
+                            if (excessH1 >= 1) {
+                                // Odd target done in H1
+                                targetH1 = baseTarget + 1;
+                                targetH2 = baseTarget;
+                            } else if (excessH2 >= 1) {
+                                // Odd target done in H2
+                                targetH1 = baseTarget;
+                                targetH2 = baseTarget + 1;
                             } else {
-                                badgeClass = 'overdue';
-                                badgeText = 'Требует ТО';
+                                // Not done in either half as an excess yet
+                                // Expected in H1 if today <= 15, otherwise shifts to H2
+                                if (now.getDate() <= 15) {
+                                    targetH1 = baseTarget + 1;
+                                    targetH2 = baseTarget;
+                                } else {
+                                    targetH1 = baseTarget;
+                                    targetH2 = baseTarget + 1;
+                                }
                             }
+                        }
+                    }
+                    
+                    const compH1 = Math.min(completedH1, targetH1);
+                    const compH2 = Math.min(completedH2, targetH2);
+                    
+                    addrTargetH1 += targetH1;
+                    addrCompletedH1 += compH1;
+                    addrTargetH2 += targetH2;
+                    addrCompletedH2 += compH2;
+                    
+                    // Generate machine badges
+                    let badgesHtml = '';
+                    
+                    // Check 1st Half
+                    if (targetH1 > 0) {
+                        let badgeClass = 'pending';
+                        let badgeText = '';
+                        if (completedH1 >= targetH1) {
+                            badgeClass = 'done';
+                            badgeText = 'I: Выполнено';
+                        } else if (completedH1 > 0) {
+                            badgeClass = 'pending';
+                            badgeText = `I: ${completedH1}/${targetH1}`;
+                        } else {
+                            // past day 15 means 1st half is over
+                            if (now.getDate() > 15) {
+                                badgeClass = 'overdue';
+                                badgeText = 'I: Просрочено';
+                            } else {
+                                badgeClass = 'pending';
+                                badgeText = 'I: Ожидает';
+                            }
+                        }
+                        badgesHtml += `<span class="badge ${badgeClass}">${badgeText}</span>`;
+                    }
+                    
+                    // Check 2nd Half
+                    if (targetH2 > 0) {
+                        let badgeClass = 'pending';
+                        let badgeText = '';
+                        if (completedH2 >= targetH2) {
+                            badgeClass = 'done';
+                            badgeText = 'II: Выполнено';
+                        } else if (completedH2 > 0) {
+                            badgeClass = 'pending';
+                            badgeText = `II: ${completedH2}/${targetH2}`;
+                        } else {
+                            badgeClass = 'pending';
+                            badgeText = 'II: Ожидает';
+                        }
+                        badgesHtml += `<span class="badge ${badgeClass}" style="margin-left: 4px;">${badgeText}</span>`;
+                    }
+                    
+                    // Service by request (F = 0)
+                    if (targetH1 === 0 && targetH2 === 0) {
+                        const totalCount = completedH1 + completedH2;
+                        if (totalCount > 0) {
+                            badgesHtml += `<span class="badge done">Выполнено (${totalCount})</span>`;
+                        } else {
+                            badgesHtml += `<span class="badge info">По запросу</span>`;
                         }
                     }
                     
@@ -1188,43 +1254,52 @@ function renderDashboard() {
                                 <span class="list-item-title">${mach.model}</span>
                                 <span class="list-item-subtitle">S/N: ${mach.serial} ${mach.inv ? ' | Inv: ' + mach.inv : ''}${mach.employee ? ' | Отв: ' + mach.employee : ''}</span>
                             </div>
-                            <span class="badge ${badgeClass}">${badgeText}</span>
+                            <div style="display: flex; gap: 4px; align-items: center;">
+                                ${badgesHtml}
+                            </div>
                         </div>
                     `;
                 });
                 
-                // Calculate address badge status
-                let addrBadgeClass = 'pending';
-                let addrBadgeText = '';
-                if (addrTarget === 0) {
-                    if (addrCompleted > 0) {
-                        addrBadgeClass = 'done';
-                        addrBadgeText = `Сделано: ${addrCompleted}`;
+                // Calculate address badges for H1 and H2
+                let addrBadgesHtml = '';
+                
+                if (addrTargetH1 > 0) {
+                    const addrBadgeClassH1 = addrCompletedH1 >= addrTargetH1 ? 'done' : 'pending';
+                    addrBadgesHtml += `<span class="badge ${addrBadgeClassH1}">I: ${addrCompletedH1}/${addrTargetH1}</span>`;
+                }
+                if (addrTargetH2 > 0) {
+                    const addrBadgeClassH2 = addrCompletedH2 >= addrTargetH2 ? 'done' : 'pending';
+                    addrBadgesHtml += `<span class="badge ${addrBadgeClassH2}" style="margin-left: 4px;">II: ${addrCompletedH2}/${addrTargetH2}</span>`;
+                }
+                if (addrTargetH1 === 0 && addrTargetH2 === 0) {
+                    const actualComp = db.machines.filter(m => m.addressId == addr.id)
+                                          .reduce((sum, m) => sum + db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date)).length, 0);
+                    if (actualComp > 0) {
+                        addrBadgesHtml += `<span class="badge done">Сделано: ${actualComp}</span>`;
                     } else {
-                        addrBadgeClass = 'info';
-                        addrBadgeText = 'По запросу';
-                    }
-                } else {
-                    addrBadgeText = `${addrCompleted}/${addrTarget}`;
-                    if (addrCompleted >= addrTarget) {
-                        addrBadgeClass = 'done';
-                    } else {
-                        addrBadgeClass = 'pending';
+                        addrBadgesHtml += `<span class="badge info">По запросу</span>`;
                     }
                 }
                 
-                cityTarget += addrTarget;
-                cityCompleted += addrCompleted;
+                cityTargetH1 += addrTargetH1;
+                cityCompletedH1 += addrCompletedH1;
+                cityTargetH2 += addrTargetH2;
+                cityCompletedH2 += addrCompletedH2;
                 
-                totalTarget += addrTarget;
-                totalCompleted += addrCompleted;
+                totalTargetH1 += addrTargetH1;
+                totalCompletedH1 += addrCompletedH1;
+                totalTargetH2 += addrTargetH2;
+                totalCompletedH2 += addrCompletedH2;
                 
                 cityAddressesHtml += `
                     <details class="dash-address" data-address-text="${addr.bank.toLowerCase()} ${addr.address.toLowerCase()}">
                         <summary>
                             <span>📍 ${addr.bank}, ${addr.address}</span>
                             <div style="display:flex; align-items:center; gap:8px;">
-                                <span class="badge ${addrBadgeClass}">${addrBadgeText}</span>
+                                <div style="display: flex; gap: 4px; align-items: center;">
+                                    ${addrBadgesHtml}
+                                </div>
                                 <span class="details-indicator">▼</span>
                             </div>
                         </summary>
@@ -1241,23 +1316,26 @@ function renderDashboard() {
                 `;
             });
             
-            // Calculate City badge status
-            let cityBadgeClass = 'pending';
-            let cityBadgeText = '';
-            if (cityTarget === 0) {
-                if (cityCompleted > 0) {
-                    cityBadgeClass = 'done';
-                    cityBadgeText = `Сделано: ${cityCompleted}`;
+            // Calculate City badges for H1 and H2
+            let cityBadgesHtml = '';
+            
+            if (cityTargetH1 > 0) {
+                const cityBadgeClassH1 = cityCompletedH1 >= cityTargetH1 ? 'done' : 'pending';
+                cityBadgesHtml += `<span class="badge ${cityBadgeClassH1}">I: ${cityCompletedH1}/${cityTargetH1}</span>`;
+            }
+            if (cityTargetH2 > 0) {
+                const cityBadgeClassH2 = cityCompletedH2 >= cityTargetH2 ? 'done' : 'pending';
+                cityBadgesHtml += `<span class="badge ${cityBadgeClassH2}" style="margin-left: 4px;">II: ${cityCompletedH2}/${cityTargetH2}</span>`;
+            }
+            if (cityTargetH1 === 0 && cityTargetH2 === 0) {
+                const actualComp = cityAddresses.reduce((sum, addr) => {
+                    return sum + db.machines.filter(m => m.addressId == addr.id)
+                                  .reduce((sum2, m) => sum2 + db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date)).length, 0);
+                }, 0);
+                if (actualComp > 0) {
+                    cityBadgesHtml += `<span class="badge done">Сделано: ${actualComp}</span>`;
                 } else {
-                    cityBadgeClass = 'info';
-                    cityBadgeText = 'По запросу';
-                }
-            } else {
-                cityBadgeText = `${cityCompleted}/${cityTarget}`;
-                if (cityCompleted >= cityTarget) {
-                    cityBadgeClass = 'done';
-                } else {
-                    cityBadgeClass = 'pending';
+                    cityBadgesHtml += `<span class="badge info">По запросу</span>`;
                 }
             }
             
@@ -1266,7 +1344,9 @@ function renderDashboard() {
                     <summary>
                         <span>🏙️ ${city}</span>
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <span class="badge ${cityBadgeClass}">${cityBadgeText}</span>
+                            <div style="display: flex; gap: 4px; align-items: center;">
+                                ${cityBadgesHtml}
+                            </div>
                             <span class="details-indicator">▼</span>
                         </div>
                     </summary>
@@ -1277,21 +1357,35 @@ function renderDashboard() {
             `;
         });
         
-        // Compute progress bar percentage
-        const percent = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : (totalCompleted > 0 ? 100 : 0);
+        // Compute progress bar percentages for Route
+        const percentH1 = totalTargetH1 > 0 ? Math.round((totalCompletedH1 / totalTargetH1) * 100) : (totalCompletedH1 > 0 ? 100 : 0);
+        const percentH2 = totalTargetH2 > 0 ? Math.round((totalCompletedH2 / totalTargetH2) * 100) : (totalCompletedH2 > 0 ? 100 : 0);
         
         html += `
             <details class="dash-route">
                 <summary>
-                    <div style="flex:1; display:flex; flex-direction:column; gap:4px; padding-right:12px;">
+                    <div style="flex:1; display:flex; flex-direction:column; gap:6px; padding-right:12px;">
                         <span>🚗 ${route}</span>
-                        <div class="progress-bar-container">
-                            <div class="progress-info">
-                                <span>Прогресс: ${percent}%</span>
-                                <span>${totalCompleted}/${totalTarget} ТО</span>
+                        <div class="progress-bars-wrapper" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- I половина -->
+                            <div class="progress-bar-container" style="margin-top: 2px;">
+                                <div class="progress-info" style="font-size: 11px; margin-bottom: 2px;">
+                                    <span>I половина (1-15): ${percentH1}%</span>
+                                    <span>${totalCompletedH1}/${totalTargetH1} ТО</span>
+                                </div>
+                                <div class="progress-bar-bg" style="height: 6px;">
+                                    <div class="progress-bar-fill" style="width: ${percentH1}%; background-color: var(--primary-color);"></div>
+                                </div>
                             </div>
-                            <div class="progress-bar-bg">
-                                <div class="progress-bar-fill" style="width: ${percent}%;"></div>
+                            <!-- II половина -->
+                            <div class="progress-bar-container" style="margin-top: 0;">
+                                <div class="progress-info" style="font-size: 11px; margin-bottom: 2px;">
+                                    <span>II половина (16+): ${percentH2}%</span>
+                                    <span>${totalCompletedH2}/${totalTargetH2} ТО</span>
+                                </div>
+                                <div class="progress-bar-bg" style="height: 6px;">
+                                    <div class="progress-bar-fill" style="width: ${percentH2}%; background-color: #00838f;"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
