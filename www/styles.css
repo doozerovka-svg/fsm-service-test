@@ -1343,3 +1343,46 @@ details[open] > summary .details-indicator {
     font-size: 14px;
     padding: 10px 12px;
 }
+
+/* =========================================================================
+   HISTORY CHECKBOX & SELECTION COLORING
+   ========================================================================= */
+.timeline-item.verified-item {
+    background-color: #f1f8e9 !important;
+    border-color: #dcedc8 !important;
+}
+
+.history-check-input {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 2px solid var(--text-muted);
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-quick);
+    background-color: #ffffff;
+    margin: 0;
+}
+
+.history-check-input:checked {
+    background-color: var(--success-color, #28a745);
+    border-color: var(--success-color, #28a745);
+}
+
+.history-check-input:checked::after {
+    content: "✓";
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.history-check-input:hover {
+    border-color: var(--success-color, #28a745);
+    transform: scale(1.05);
+}

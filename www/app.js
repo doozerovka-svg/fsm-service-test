@@ -876,6 +876,15 @@ function deleteHistory(id) {
     });
 }
 
+function toggleHistoryChecked(id, isChecked) {
+    const h = db.history.find(x => x.id == id);
+    if (h) {
+        h.checked = isChecked;
+        saveData();
+        showToast(isChecked ? '✅ Отметка установлена' : 'ℹ️ Отметка снята');
+    }
+}
+
 // =========================================================================
 // DATA POPULATION HELPERS
 // =========================================================================
@@ -1506,9 +1515,12 @@ function renderHistory() {
         }
         
         html += `
-            <div class="timeline-item">
-                <div class="timeline-header">
-                    <div class="timeline-title">${model}</div>
+            <div class="timeline-item ${h.checked ? 'verified-item' : ''}">
+                <div class="timeline-header" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" class="history-check-input" ${h.checked ? 'checked' : ''} onchange="toggleHistoryChecked(${h.id}, this.checked)" onclick="event.stopPropagation();">
+                        <div class="timeline-title">${model}</div>
+                    </div>
                     <div class="timeline-time">${timeStr}</div>
                 </div>
                 
@@ -1859,5 +1871,6 @@ async function stopScanner() {
 window.startScanner = startScanner;
 window.stopScanner = stopScanner;
 window.switchCamera = switchCamera;
+window.toggleHistoryChecked = toggleHistoryChecked;
 
 
