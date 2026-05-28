@@ -761,7 +761,14 @@ function openServiceModal(machineId) {
     document.getElementById('modalCounter').value = '';
     document.getElementById('modalNotes').value = '';
     document.getElementById('modalParts').value = '';
-    document.querySelectorAll('.work-check').forEach(cb => cb.checked = false);
+    
+    // Reset service type checkboxes and conditional containers
+    document.getElementById('workCheckMaintenance').checked = true;
+    document.getElementById('workCheckRepair').checked = false;
+    document.getElementById('workCheckReplace').checked = false;
+    document.getElementById('modalPartsContainer').style.display = 'none';
+    document.getElementById('modalReplacementContainer').style.display = 'none';
+    document.getElementById('modalReplacementSerial').value = '';
     
     // Populate performer dropdown and preselect machine's responsible employee
     populateDropdown('modalEmployee', db.employees, m.employee || '');
@@ -781,13 +788,29 @@ function saveService() {
     const dateVal = document.getElementById('modalDate').value;
     let counter = document.getElementById('modalCounter').value.trim();
     const employee = document.getElementById('modalEmployee').value;
-    const parts = document.getElementById('modalParts').value.trim();
-    const notes = document.getElementById('modalNotes').value.trim();
+    let parts = document.getElementById('modalParts').value.trim();
+    let notes = document.getElementById('modalNotes').value.trim();
     let tasks = [];
     document.querySelectorAll('.work-check:checked').forEach(cb => tasks.push(cb.value));
 
     const m = db.machines.find(x => x.id == machineId);
     if (!m) return;
+
+    const isReplace = tasks.includes('Замена машинки');
+    const isRepair = tasks.includes('Ремонт машинки');
+    let replacementSerial = '';
+    
+    if (isReplace) {
+        replacementSerial = document.getElementById('modalReplacementSerial').value.trim();
+        if (!replacementSerial) {
+            showToast('⚠️ Введите новый серийный номер для замены машинки!');
+            return;
+        }
+    }
+    
+    if (!isRepair) {
+        parts = ''; // Clear parts if repair is not checked
+    }
 
     // Auto-Counter Filling logic (recovers last entered number in history)
     if (!counter || counter === '') {
@@ -809,10 +832,20 @@ function saveService() {
         }
     }
 
+    const oldSerial = m.serial;
+    if (isReplace) {
+        m.serial = replacementSerial;
+        // Save the updated machine object immediately
+        saveData('machines/' + m.id, m);
+        
+        const replaceLog = `Замена машинки. S/N изменен с [${oldSerial}] на [${replacementSerial}]`;
+        notes = notes ? notes + '\n' + replaceLog : replaceLog;
+    }
+
     const newRecord = { 
         id: Date.now(), 
         machineId, 
-        machineSerial: m.serial, 
+        machineSerial: isReplace ? replacementSerial : oldSerial, 
         machineInv: m.inv || '',
         date: isoDate, 
         counter, 
@@ -839,9 +872,21 @@ function openEditHistory(id) {
     document.getElementById('editHistNotes').value = h.notes || '';
     document.getElementById('editHistParts').value = h.parts || '';
     
-    document.querySelectorAll('.edit-work-check').forEach(cb => {
-        cb.checked = h.tasks ? h.tasks.includes(cb.value) : false;
-    });
+    // Check checkboxes based on task array contents
+    const hasMaintenance = h.tasks ? h.tasks.includes('Обслуживание машинки') : false;
+    const hasRepair = h.tasks ? h.tasks.includes('Ремонт машинки') : false;
+    const hasReplace = h.tasks ? h.tasks.includes('Замена машинки') : false;
+
+    document.getElementById('editWorkCheckMaintenance').checked = hasMaintenance;
+    document.getElementById('editWorkCheckRepair').checked = hasRepair;
+    document.getElementById('editWorkCheckReplace').checked = hasReplace;
+
+    // Toggle container display based on selections
+    document.getElementById('editHistPartsContainer').style.display = hasRepair ? 'block' : 'none';
+    document.getElementById('editHistReplacementContainer').style.display = hasReplace ? 'block' : 'none';
+    
+    // Set replacement serial number input
+    document.getElementById('editHistReplacementSerial').value = hasReplace ? (h.machineSerial || '') : '';
     
     // Populate performing employee dropdown
     populateDropdown('editHistEmployee', db.employees, h.employee || '');
@@ -865,14 +910,44 @@ function saveEditHistory() {
                     isoDate = new Date().toISOString();
                 }
             }
-            h.date = isoDate;
-            h.counter = document.getElementById('editHistCounter').value.trim();
-            h.employee = document.getElementById('editHistEmployee').value;
-            h.parts = document.getElementById('editHistParts').value.trim();
-            h.notes = document.getElementById('editHistNotes').value.trim();
             
             let tasks = [];
             document.querySelectorAll('.edit-work-check:checked').forEach(cb => tasks.push(cb.value));
+            
+            const isReplace = tasks.includes('Замена машинки');
+            const isRepair = tasks.includes('Ремонт машинки');
+            let replacementSerial = '';
+            
+            if (isReplace) {
+                replacementSerial = document.getElementById('editHistReplacementSerial').value.trim();
+                if (!replacementSerial) {
+                    showToast('⚠️ Введите новый серийный номер для замены машинки!');
+                    return;
+                }
+            }
+            
+            let parts = document.getElementById('editHistParts').value.trim();
+            if (!isRepair) {
+                parts = '';
+            }
+
+            // Sync serial changes with the machines registry if replacement serial has changed
+            const m = db.machines.find(x => x.id == h.machineId);
+            if (isReplace && replacementSerial && h.machineSerial !== replacementSerial) {
+                h.machineSerial = replacementSerial;
+                if (m) {
+                    m.serial = replacementSerial;
+                    saveData('machines/' + m.id, m);
+                }
+            } else if (!isReplace && m && h.machineSerial !== m.serial) {
+                h.machineSerial = m.serial;
+            }
+            
+            h.date = isoDate;
+            h.counter = document.getElementById('editHistCounter').value.trim();
+            h.employee = document.getElementById('editHistEmployee').value;
+            h.parts = parts;
+            h.notes = document.getElementById('editHistNotes').value.trim();
             h.tasks = tasks;
             
             saveData('history/' + h.id, h);
@@ -2478,8 +2553,32 @@ function togglePrevServiceHistory() {
     }
 }
 
+function togglePartsVisibility(visible) {
+    const el = document.getElementById('modalPartsContainer');
+    if (el) el.style.display = visible ? 'block' : 'none';
+}
+
+function toggleReplacementVisibility(visible) {
+    const el = document.getElementById('modalReplacementContainer');
+    if (el) el.style.display = visible ? 'block' : 'none';
+}
+
+function toggleEditPartsVisibility(visible) {
+    const el = document.getElementById('editHistPartsContainer');
+    if (el) el.style.display = visible ? 'block' : 'none';
+}
+
+function toggleEditReplacementVisibility(visible) {
+    const el = document.getElementById('editHistReplacementContainer');
+    if (el) el.style.display = visible ? 'block' : 'none';
+}
+
 window.confirmRole = confirmRole;
 window.logoutRole = logoutRole;
 window.togglePrevServiceHistory = togglePrevServiceHistory;
+window.togglePartsVisibility = togglePartsVisibility;
+window.toggleReplacementVisibility = toggleReplacementVisibility;
+window.toggleEditPartsVisibility = toggleEditPartsVisibility;
+window.toggleEditReplacementVisibility = toggleEditReplacementVisibility;
 
 

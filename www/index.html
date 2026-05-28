@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=15.0">
+    <link rel="stylesheet" href="styles.css?v=16.0">
 </head>
 <body>
 
@@ -439,34 +439,37 @@
             </div>
             
             <div class="form-group">
-                <label>Выполненные работы</label>
+                <label>Вид работы</label>
                 <div class="checkbox-group">
                     <label class="custom-checkbox">
-                        <input type="checkbox" class="work-check" value="Очистка тракта">
+                        <input type="checkbox" class="work-check" id="workCheckMaintenance" value="Обслуживание машинки" checked>
                         <span class="checkmark"></span>
-                        <span class="checkbox-label">Очистка тракта</span>
+                        <span class="checkbox-label">Обслуживание машинки</span>
                     </label>
                     <label class="custom-checkbox">
-                        <input type="checkbox" class="work-check" value="Чистка датчиков">
+                        <input type="checkbox" class="work-check" id="workCheckRepair" value="Ремонт машинки" onchange="togglePartsVisibility(this.checked)">
                         <span class="checkmark"></span>
-                        <span class="checkbox-label">Чистка датчиков</span>
+                        <span class="checkbox-label">Ремонт машинки</span>
                     </label>
                     <label class="custom-checkbox">
-                        <input type="checkbox" class="work-check" value="Проверка роликов">
+                        <input type="checkbox" class="work-check" id="workCheckReplace" value="Замена машинки" onchange="toggleReplacementVisibility(this.checked)">
                         <span class="checkmark"></span>
-                        <span class="checkbox-label">Проверка роликов</span>
-                    </label>
-                    <label class="custom-checkbox">
-                        <input type="checkbox" class="work-check" value="Калибровка">
-                        <span class="checkmark"></span>
-                        <span class="checkbox-label">Калибровка</span>
+                        <span class="checkbox-label">Замена машинки</span>
                     </label>
                 </div>
             </div>
             
-            <div class="form-group">
+            <div class="form-group" id="modalPartsContainer" style="display: none;">
                 <label for="modalParts">Использованные запчасти (ручной ввод)</label>
                 <textarea id="modalParts" rows="2" placeholder="Например: Ролики захвата - 2 шт, ремень - 1 шт" class="custom-textarea"></textarea>
+            </div>
+
+            <div class="form-group" id="modalReplacementContainer" style="display: none;">
+                <label for="modalReplacementSerial">Новый серийный № (S/N)</label>
+                <div class="flex-row" style="gap: 4px; align-items: center;">
+                    <input type="text" id="modalReplacementSerial" placeholder="Новый S/N" style="margin: 0; flex: 1;">
+                    <button class="btn-primary" onclick="startScanner('modalReplacementSerial')" style="padding: 8px 12px; font-size: 14px; margin: 0; min-height: 42px; border-radius: var(--radius-sm);">📸</button>
+                </div>
             </div>
 
             <div class="form-group">
@@ -549,34 +552,37 @@
             </div>
             
             <div class="form-group">
-                <label>Выполненные работы</label>
+                <label>Вид работы</label>
                 <div class="checkbox-group">
                     <label class="custom-checkbox">
-                        <input type="checkbox" class="edit-work-check" value="Очистка тракта">
+                        <input type="checkbox" class="edit-work-check" id="editWorkCheckMaintenance" value="Обслуживание машинки">
                         <span class="checkmark"></span>
-                        <span class="checkbox-label">Очистка тракта</span>
+                        <span class="checkbox-label">Обслуживание машинки</span>
                     </label>
                     <label class="custom-checkbox">
-                        <input type="checkbox" class="edit-work-check" value="Чистка датчиков">
+                        <input type="checkbox" class="edit-work-check" id="editWorkCheckRepair" value="Ремонт машинки" onchange="toggleEditPartsVisibility(this.checked)">
                         <span class="checkmark"></span>
-                        <span class="checkbox-label">Чистка датчиков</span>
+                        <span class="checkbox-label">Ремонт машинки</span>
                     </label>
                     <label class="custom-checkbox">
-                        <input type="checkbox" class="edit-work-check" value="Проверка роликов">
+                        <input type="checkbox" class="edit-work-check" id="editWorkCheckReplace" value="Замена машинки" onchange="toggleEditReplacementVisibility(this.checked)">
                         <span class="checkmark"></span>
-                        <span class="checkbox-label">Проверка роликов</span>
-                    </label>
-                    <label class="custom-checkbox">
-                        <input type="checkbox" class="edit-work-check" value="Калибровка">
-                        <span class="checkmark"></span>
-                        <span class="checkbox-label">Калибровка</span>
+                        <span class="checkbox-label">Замена машинки</span>
                     </label>
                 </div>
             </div>
             
-            <div class="form-group">
+            <div class="form-group" id="editHistPartsContainer" style="display: none;">
                 <label for="editHistParts">Использованные запчасти</label>
                 <textarea id="editHistParts" rows="2" class="custom-textarea"></textarea>
+            </div>
+
+            <div class="form-group" id="editHistReplacementContainer" style="display: none;">
+                <label for="editHistReplacementSerial">Новый серийный № (S/N)</label>
+                <div class="flex-row" style="gap: 4px; align-items: center;">
+                    <input type="text" id="editHistReplacementSerial" placeholder="Новый S/N" style="margin: 0; flex: 1;">
+                    <button class="btn-primary" onclick="startScanner('editHistReplacementSerial')" style="padding: 8px 12px; font-size: 14px; margin: 0; min-height: 42px; border-radius: var(--radius-sm);">📸</button>
+                </div>
             </div>
 
             <div class="form-group">
@@ -628,7 +634,7 @@
 
     <!-- App Script logic -->
     <script src="html5-qrcode.min.js"></script>
-    <script src="app.js?v=15.0"></script>
+    <script src="app.js?v=16.0"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>
