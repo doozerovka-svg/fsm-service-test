@@ -1403,3 +1403,31 @@ details[open] > summary .details-indicator {
     border-color: var(--success-color, #28a745);
     transform: scale(1.05);
 }
+
+/* =========================================================================
+   HISTORY DAY COLLAPSIBLE
+   ========================================================================= */
+.history-day-collapsible {
+    margin: 8px 0 !important;
+    border: none !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.history-day-collapsible > summary {
+    background: transparent !important;
+    color: var(--primary-color) !important;
+    font-size: 14px !important;
+    font-weight: bold !important;
+    padding: 10px 4px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+}
+
+.history-day-content {
+    padding: 8px 0 !important;
+    background: transparent !important;
+}

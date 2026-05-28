@@ -1554,8 +1554,8 @@ function renderHistory() {
     // Sort chronological descending
     const sorted = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
     
-    let currentDayStr = '';
-    let html = '';
+    const dayKeys = [];
+    const dayGroups = {};
     
     sorted.forEach(h => {
         const dateObj = new Date(h.date);
@@ -1565,57 +1565,84 @@ function renderHistory() {
         const months = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
         const dayStr = `${days[dateObj.getDay()]}, ${dateObj.getDate()} ${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
         
-        if (dayStr !== currentDayStr) {
-            currentDayStr = dayStr;
-            html += `<div class="day-header">${currentDayStr}</div>`;
+        if (!dayGroups[dayStr]) {
+            dayGroups[dayStr] = [];
+            dayKeys.push(dayStr);
         }
+        dayGroups[dayStr].push(h);
+    });
+    
+    let html = '';
+    const isOpen = searchVal !== '' ? 'open' : '';
+    
+    dayKeys.forEach(dayStr => {
+        const items = dayGroups[dayStr];
+        let itemsHtml = '';
         
-        const m = db.machines.find(x => x.id == h.machineId);
-        const a = m ? db.addresses.find(x => x.id == m.addressId) : null;
-        const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-        
-        const serial = h.machineSerial || (m ? m.serial : 'Неизвестно');
-        const inv = h.machineInv || (m ? m.inv : '');
-        const model = m ? m.model : 'Удаленная модель';
-        const clientText = a ? `${a.bank}, ${a.address}` : 'Адрес удален';
-        
-        let tasksHtml = '';
-        if (h.tasks && h.tasks.length > 0) {
-            tasksHtml = `
-                <div class="timeline-tasks">
-                    ${h.tasks.map(t => `<span class="task-tag">${t}</span>`).join('')}
+        items.forEach(h => {
+            const dateObj = new Date(h.date);
+            const m = db.machines.find(x => x.id == h.machineId);
+            const a = m ? db.addresses.find(x => x.id == m.addressId) : null;
+            const timeStr = dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            
+            const serial = h.machineSerial || (m ? m.serial : 'Неизвестно');
+            const inv = h.machineInv || (m ? m.inv : '');
+            const model = m ? m.model : 'Удаленная модель';
+            const clientText = a ? `${a.bank}, ${a.address}` : 'Адрес удален';
+            
+            let tasksHtml = '';
+            if (h.tasks && h.tasks.length > 0) {
+                tasksHtml = `
+                    <div class="timeline-tasks">
+                        ${h.tasks.map(t => `<span class="task-tag">${t}</span>`).join('')}
+                    </div>
+                `;
+            }
+            
+            itemsHtml += `
+                <div class="timeline-item ${h.checked ? 'verified-item' : ''}">
+                    <div class="timeline-header" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" class="history-check-input" ${h.checked ? 'checked' : ''} onchange="toggleHistoryChecked(${h.id}, this.checked)" onclick="event.stopPropagation();">
+                            <div class="timeline-title">${model}</div>
+                        </div>
+                        <div class="timeline-time">${timeStr}</div>
+                    </div>
+                    
+                    <div class="timeline-body">
+                        <div class="timeline-meta-row">
+                            <div class="timeline-meta-item">S/N: <strong>${serial}</strong>${inv ? ` | Inv: <strong>${inv}</strong>` : ''}</div>
+                            ${h.counter ? `<div class="timeline-meta-item">Счетчик: <strong>${h.counter}</strong></div>` : ''}
+                        </div>
+                        <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">📍 ${clientText}</div>
+                        ${h.employee ? `<div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">👤 Исполнитель: <strong>${h.employee}</strong></div>` : ''}
+                        
+                        ${tasksHtml}
+                        ${h.notes ? `<div class="timeline-notes">${h.notes}</div>` : ''}
+                        ${h.parts ? `<div class="timeline-notes" style="border-left-color: var(--primary-color);">🛠️ Использованные запчасти:<br>${h.parts}</div>` : ''}
+                    </div>
+                    
+                    <div class="actions" style="margin-top: 12px; display:flex; justify-content:flex-end;">
+                        <button class="btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="openEditHistory(${h.id})" title="Редактировать">✏️</button>
+                        <button class="btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteHistory(${h.id})" title="Удалить">🗑️</button>
+                    </div>
                 </div>
             `;
-        }
+        });
         
         html += `
-            <div class="timeline-item ${h.checked ? 'verified-item' : ''}">
-                <div class="timeline-header" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <details class="history-day-collapsible" ${isOpen}>
+                <summary class="history-day-summary">
+                    <span>📅 ${dayStr}</span>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" class="history-check-input" ${h.checked ? 'checked' : ''} onchange="toggleHistoryChecked(${h.id}, this.checked)" onclick="event.stopPropagation();">
-                        <div class="timeline-title">${model}</div>
+                        <span class="badge info" style="background-color: var(--primary-color); color: #fff; padding: 2px 8px; font-size:11px; border-radius:10px;">${items.length}</span>
+                        <span class="details-indicator">▼</span>
                     </div>
-                    <div class="timeline-time">${timeStr}</div>
+                </summary>
+                <div class="details-content history-day-content" style="padding: 8px 0; background: transparent;">
+                    ${itemsHtml}
                 </div>
-                
-                <div class="timeline-body">
-                    <div class="timeline-meta-row">
-                        <div class="timeline-meta-item">S/N: <strong>${serial}</strong>${inv ? ` | Inv: <strong>${inv}</strong>` : ''}</div>
-                        ${h.counter ? `<div class="timeline-meta-item">Счетчик: <strong>${h.counter}</strong></div>` : ''}
-                    </div>
-                    <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">📍 ${clientText}</div>
-                    ${h.employee ? `<div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">👤 Исполнитель: <strong>${h.employee}</strong></div>` : ''}
-                    
-                    ${tasksHtml}
-                    ${h.notes ? `<div class="timeline-notes">${h.notes}</div>` : ''}
-                    ${h.parts ? `<div class="timeline-notes" style="border-left-color: var(--primary-color);">🛠️ Использованные запчасти:<br>${h.parts}</div>` : ''}
-                </div>
-                
-                <div class="actions" style="margin-top: 12px; display:flex; justify-content:flex-end;">
-                    <button class="btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="openEditHistory(${h.id})">✏️</button>
-                    <button class="btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteHistory(${h.id})">🗑️</button>
-                </div>
-            </div>
+            </details>
         `;
     });
     
