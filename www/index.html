@@ -28,6 +28,12 @@
 </head>
 <body>
 
+    <script>
+        if (localStorage.getItem('fsm_theme') === 'dark') {
+            document.body.classList.add('dark');
+        }
+    </script>
+
     <!-- Toast Notification -->
     <div id="toast"></div>
 
@@ -65,45 +71,59 @@
                     <input type="text" id="dashboardSearch" placeholder="🔍 Поиск по чек-листу (маршрут, город, адрес, S/N)..." oninput="filterDashboard(this)" style="margin-bottom: 0; padding: 10px; font-size: 15px; flex: 1;">
                     <button class="btn-primary tooltip" onclick="startScanner('dashboardSearch', () => filterDashboard(document.getElementById('dashboardSearch')))" title="Сканировать штрихкод" style="padding: 10px 14px; font-size: 16px; margin: 0; min-height: 46px; min-width: 46px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm);">📸</button>
                 </div>
+                <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+                    <label class="toggle-container">
+                        <input type="checkbox" id="onlyPendingToggle" class="toggle-input" onchange="renderDashboard()">
+                        <span class="toggle-track">
+                            <span class="toggle-thumb"></span>
+                        </span>
+                        <span>Только невыполненные</span>
+                    </label>
+                </div>
             </div>
             <div id="dashboardList" class="cards-list"></div>
         </section>
 
         <!-- Вкладка: Адреса и Машины -->
         <section id="tab-addresses" class="tab-content">
-            <div class="card glass-card">
-                <h3>📍 Добавить новый адрес</h3>
-                <div class="form-group">
-                    <label for="addrBank">Банк / Клиент</label>
-                    <div class="custom-select-wrapper" id="wrapper-addrBank">
-                        <input type="hidden" id="addrBank">
+            <details class="card glass-card" style="margin-bottom: 15px; padding: 0 15px;">
+                <summary style="font-weight: 600; cursor: pointer; color: var(--primary-color); padding: 15px 0; outline: none; list-style: none; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="display:flex; align-items:center; gap:8px;">📍 Добавить новый адрес</span>
+                    <span class="details-indicator">▼</span>
+                </summary>
+                <div style="padding-bottom: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                    <div class="form-group">
+                        <label for="addrBank">Банк / Клиент</label>
+                        <div class="custom-select-wrapper" id="wrapper-addrBank">
+                            <input type="hidden" id="addrBank">
+                        </div>
                     </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="addrText">Адрес установки</label>
-                    <div class="flex-row geo-input-row">
-                        <input type="text" id="addrText" placeholder="Например: Кишинев, ул. Пушкина 1">
-                        <button class="icon-btn tooltip" onclick="getCurrentLocation()" title="Определить по GPS">📍</button>
+                    
+                    <div class="form-group">
+                        <label for="addrText">Адрес установки</label>
+                        <div class="flex-row geo-input-row">
+                            <input type="text" id="addrText" placeholder="Например: Кишинев, ул. Пушкина 1">
+                            <button class="icon-btn tooltip" onclick="getCurrentLocation()" title="Определить по GPS">📍</button>
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label for="addrRoute">Маршрут обслуживания</label>
-                    <div class="custom-select-wrapper" id="wrapper-addrRoute">
-                        <input type="hidden" id="addrRoute">
+                    <div class="form-group">
+                        <label for="addrRoute">Маршрут обслуживания</label>
+                        <div class="custom-select-wrapper" id="wrapper-addrRoute">
+                            <input type="hidden" id="addrRoute">
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label for="addrCity">Город</label>
-                    <div class="custom-select-wrapper" id="wrapper-addrCity">
-                        <input type="hidden" id="addrCity">
+                    <div class="form-group">
+                        <label for="addrCity">Город</label>
+                        <div class="custom-select-wrapper" id="wrapper-addrCity">
+                            <input type="hidden" id="addrCity">
+                        </div>
                     </div>
+                    
+                    <button class="btn-primary" onclick="addAddress()">+ Сохранить адрес</button>
                 </div>
-                
-                <button class="btn-primary" onclick="addAddress()">+ Сохранить адрес</button>
-            </div>
+            </details>
             
             <div class="section-title-row">
                 <h3>База адресов и машин</h3>
@@ -127,11 +147,51 @@
                     <input type="text" id="historySearch" placeholder="🔍 Поиск (банк, модель, S/N...)" oninput="renderHistory()">
                 </div>
             </div>
+            
+            <div class="segmented-control">
+                <button class="segment-btn active" id="histFilter-all" onclick="setHistoryFilter('all')">Все</button>
+                <button class="segment-btn" id="histFilter-unverified" onclick="setHistoryFilter('unverified')">🟡 На проверке</button>
+                <button class="segment-btn" id="histFilter-verified" onclick="setHistoryFilter('verified')">🟢 Подтверждено</button>
+            </div>
+            
+            <div class="history-stats-container" id="historyStats">
+                <div class="history-stat-item">📅 За неделю: <strong id="statsWeeklyCount">0 ТО</strong></div>
+                <div class="history-stat-item">✔️ Подтверждено: <strong id="statsWeeklyVerified">0</strong></div>
+            </div>
+
             <div id="historyList" class="timeline-container"></div>
         </section>
 
         <!-- Вкладка: Настройки -->
         <section id="tab-settings" class="tab-content">
+            <div class="card glass-card">
+                <h3>⚙️ Интерфейс и профиль</h3>
+                <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <label style="margin: 0; font-weight: 600;">Темная тема</label>
+                    <label class="toggle-container">
+                        <input type="checkbox" id="darkThemeToggle" class="toggle-input" onchange="toggleDarkTheme(this.checked)">
+                        <span class="toggle-track">
+                            <span class="toggle-thumb"></span>
+                        </span>
+                    </label>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label for="defaultEmployee">Исполнитель по умолчанию</label>
+                    <div class="custom-select-wrapper" id="wrapper-defaultEmployee">
+                        <input type="hidden" id="defaultEmployee">
+                    </div>
+                    <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Будет автоматически выбираться во всех формах проведения ТО.</p>
+                </div>
+
+                <div class="settings-section-title">Резервное копирование</div>
+                <div class="flex-row" style="gap: 8px; margin-top: 8px;">
+                    <button class="btn-outline" onclick="exportDatabase()" style="flex:1; font-size:12px; padding:8px 10px;">📤 Экспорт JSON</button>
+                    <button class="btn-outline" onclick="document.getElementById('importFileInput').click()" style="flex:1; font-size:12px; padding:8px 10px;">📥 Импорт JSON</button>
+                    <input type="file" id="importFileInput" style="display:none;" accept=".json" onchange="importDatabase(this)">
+                </div>
+            </div>
+
             <div class="card info-card">
                 <div class="info-card-header">
                     <span class="info-icon">☁️</span>

@@ -83,6 +83,8 @@ db.history = deduplicateById(ensureArray(db.history));
 
 // Initialize app UI on load
 document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = localStorage.getItem('fsm_theme') || 'light';
+    toggleDarkTheme(savedTheme === 'dark');
     renderAll();
     initializeFirebase();
 });
@@ -526,7 +528,9 @@ function openAddMachineModal(addressId) {
     document.getElementById('addMachAddressText').innerText = `📍 ${a.bank}, ${a.address}`;
     
     populateDropdown('addMachModel', db.models);
-    populateDropdown('addMachEmployee', db.employees);
+    
+    const preselectedEmployee = localStorage.getItem('fsm_default_employee') || '';
+    populateDropdown('addMachEmployee', db.employees, preselectedEmployee);
     
     document.getElementById('addMachSerial').value = '';
     document.getElementById('addMachInv').value = '';
@@ -750,6 +754,7 @@ function openServiceModal(machineId) {
     document.getElementById('modalMachineId').value = machineId;
     document.getElementById('modalTitle').innerText = `ТО: ${m.model}`;
     document.getElementById('modalSubtitle').innerText = `${a.bank}, ${a.address}\nS/N: ${m.serial}`;
+    document.getElementById('modalNotes').placeholder = "Что нужно заменить?";
     
     document.getElementById('modalDate').value = getLocalDatetimeString(new Date());
     document.getElementById('modalCounter').value = '';
@@ -757,8 +762,9 @@ function openServiceModal(machineId) {
     document.getElementById('modalParts').value = '';
     document.querySelectorAll('.work-check').forEach(cb => cb.checked = false);
     
-    // Populate performer dropdown and preselect machine's responsible employee
-    populateDropdown('modalEmployee', db.employees, m.employee || '');
+    // Populate performer dropdown and preselect machine's responsible employee or default performer
+    const preselectedEmployee = m.employee || localStorage.getItem('fsm_default_employee') || '';
+    populateDropdown('modalEmployee', db.employees, preselectedEmployee);
     
     document.getElementById('serviceModal').style.display = 'flex';
 }
@@ -813,6 +819,7 @@ function saveService() {
     saveData('history/' + newRecord.id, newRecord);
     closeAllModals();
     showToast('✅ ТО успешно сохранено!');
+    triggerHapticFeedback();
 }
 
 function openEditHistory(id) {
@@ -882,6 +889,7 @@ function toggleHistoryChecked(id, isChecked) {
         h.checked = isChecked;
         saveData();
         showToast(isChecked ? '✅ Отметка установлена' : 'ℹ️ Отметка снята');
+        triggerHapticFeedback();
     }
 }
 
@@ -1006,6 +1014,12 @@ function selectCustomOption(inputId, value, label = null) {
         if (wrapper) {
             wrapper.classList.remove('open');
         }
+        
+        // Default Employee selection hook
+        if (inputId === 'defaultEmployee') {
+            localStorage.setItem('fsm_default_employee', value);
+            showToast('👤 Исполнитель по умолчанию сохранен');
+        }
     }
 }
 
@@ -1057,6 +1071,15 @@ function renderSettings() {
     renderDictContainer('routeListContainer', 'routes');
     renderDictContainer('employeeListContainer', 'employees');
     renderDictContainer('cityListContainer', 'cities');
+    
+    // Populate default performer dropdown
+    populateDropdown('defaultEmployee', db.employees, localStorage.getItem('fsm_default_employee') || '');
+    
+    // Check dark mode toggle state
+    const themeToggle = document.getElementById('darkThemeToggle');
+    if (themeToggle) {
+        themeToggle.checked = localStorage.getItem('fsm_theme') === 'dark';
+    }
 }
 
 function renderDictContainer(containerId, type) {
@@ -1102,6 +1125,8 @@ function renderDashboard() {
     }
     
     let html = '';
+    const onlyPendingToggle = document.getElementById('onlyPendingToggle');
+    const isOnlyPending = onlyPendingToggle && onlyPendingToggle.checked;
     
     // Group addresses by routes
     db.routes.forEach((route, routeIndex) => {
@@ -1131,24 +1156,20 @@ function renderDashboard() {
             let cityAddressesHtml = '';
             
             activeCityAddresses.forEach(addr => {
-                const addrMachines = db.machines.filter(m => m.addressId == addr.id);
+                let addrMachines = db.machines.filter(m => m.addressId == addr.id);
                 if (addrMachines.length === 0) return;
                 
-                let addrHtml = '';
+                let filteredMachs = [];
                 let addrTargetH1 = 0;
                 let addrCompletedH1 = 0;
                 let addrTargetH2 = 0;
                 let addrCompletedH2 = 0;
                 
                 addrMachines.forEach(mach => {
-                    // Find all service records for this machine in the current month
                     const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date));
-                    
-                    // Split completed count by H1 (days 1-15) and H2 (days 16+)
                     const completedH1 = thisMonthServices.filter(h => new Date(h.date).getDate() <= 15).length;
                     const completedH2 = thisMonthServices.filter(h => new Date(h.date).getDate() > 15).length;
                     
-                    // Determine H1 and H2 targets
                     const F = mach.freq;
                     let targetH1 = 0;
                     let targetH2 = 0;
@@ -1156,26 +1177,19 @@ function renderDashboard() {
                     if (F > 0) {
                         const baseTarget = Math.floor(F / 2);
                         const rem = F % 2;
-                        
                         if (rem === 0) {
                             targetH1 = baseTarget;
                             targetH2 = baseTarget;
                         } else {
-                            // Odd target (e.g. F=1, F=3)
                             const excessH1 = Math.max(0, completedH1 - baseTarget);
                             const excessH2 = Math.max(0, completedH2 - baseTarget);
-                            
                             if (excessH1 >= 1) {
-                                // Odd target done in H1
                                 targetH1 = baseTarget + 1;
                                 targetH2 = baseTarget;
                             } else if (excessH2 >= 1) {
-                                // Odd target done in H2
                                 targetH1 = baseTarget;
                                 targetH2 = baseTarget + 1;
                             } else {
-                                // Not done in either half as an excess yet
-                                // Expected in H1 if today <= 15, otherwise shifts to H2
                                 if (now.getDate() <= 15) {
                                     targetH1 = baseTarget + 1;
                                     targetH2 = baseTarget;
@@ -1190,78 +1204,95 @@ function renderDashboard() {
                     const compH1 = Math.min(completedH1, targetH1);
                     const compH2 = Math.min(completedH2, targetH2);
                     
+                    // Check if machine is pending for current phase
+                    let isPending = true;
+                    if (now.getDate() <= 15) {
+                        if (targetH1 > 0) isPending = completedH1 < targetH1;
+                        else isPending = (completedH1 + completedH2) === 0;
+                    } else {
+                        if (targetH2 > 0) isPending = completedH2 < targetH2;
+                        else isPending = (completedH1 + completedH2) === 0;
+                    }
+                    
+                    if (isOnlyPending && !isPending) {
+                        return; // Skip this machine
+                    }
+                    
                     addrTargetH1 += targetH1;
                     addrCompletedH1 += compH1;
                     addrTargetH2 += targetH2;
                     addrCompletedH2 += compH2;
                     
-                    // Generate machine badges
-                    let badgesHtml = '';
+                    // Generate status dots
+                    let dotsHtml = '<div class="status-dots">';
                     
-                    // Check 1st Half
                     if (targetH1 > 0) {
-                        let badgeClass = 'pending';
-                        let badgeText = '';
+                        let dotClass = 'blue';
+                        let tooltip = 'I половина: Ожидает';
                         if (completedH1 >= targetH1) {
-                            badgeClass = 'done';
-                            badgeText = 'I: Выполнено';
+                            dotClass = 'green';
+                            tooltip = 'I половина: Выполнено';
                         } else if (completedH1 > 0) {
-                            badgeClass = 'pending';
-                            badgeText = `I: ${completedH1}/${targetH1}`;
-                        } else {
-                            // past day 15 means 1st half is over
-                            if (now.getDate() > 15) {
-                                badgeClass = 'overdue';
-                                badgeText = 'I: Просрочено';
-                            } else {
-                                badgeClass = 'pending';
-                                badgeText = 'I: Ожидает';
-                            }
+                            dotClass = 'blue';
+                            tooltip = `I половина: Выполнено ${completedH1}/${targetH1}`;
+                        } else if (now.getDate() > 15) {
+                            dotClass = 'red';
+                            tooltip = 'I половина: Просрочено';
                         }
-                        badgesHtml += `<span class="badge ${badgeClass}">${badgeText}</span>`;
+                        dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
+                    } else {
+                        dotsHtml += `<span class="status-dot grey" data-tooltip="I половина: ТО не требуется"></span>`;
                     }
                     
-                    // Check 2nd Half
                     if (targetH2 > 0) {
-                        let badgeClass = 'pending';
-                        let badgeText = '';
+                        let dotClass = 'blue';
+                        let tooltip = 'II половина: Ожидает';
                         if (completedH2 >= targetH2) {
-                            badgeClass = 'done';
-                            badgeText = 'II: Выполнено';
+                            dotClass = 'green';
+                            tooltip = 'II половина: Выполнено';
                         } else if (completedH2 > 0) {
-                            badgeClass = 'pending';
-                            badgeText = `II: ${completedH2}/${targetH2}`;
-                        } else {
-                            badgeClass = 'pending';
-                            badgeText = 'II: Ожидает';
+                            dotClass = 'blue';
+                            tooltip = `II половина: Выполнено ${completedH2}/${targetH2}`;
                         }
-                        badgesHtml += `<span class="badge ${badgeClass}" style="margin-left: 4px;">${badgeText}</span>`;
+                        dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
+                    } else {
+                        dotsHtml += `<span class="status-dot grey" data-tooltip="II половина: ТО не требуется"></span>`;
                     }
                     
-                    // Service by request (F = 0)
                     if (targetH1 === 0 && targetH2 === 0) {
                         const totalCount = completedH1 + completedH2;
-                        if (totalCount > 0) {
-                            badgesHtml += `<span class="badge done">Выполнено (${totalCount})</span>`;
-                        } else {
-                            badgesHtml += `<span class="badge info">По запросу</span>`;
-                        }
+                        const dotClass = totalCount > 0 ? 'green' : 'grey';
+                        const tooltip = totalCount > 0 ? `По запросу (Выполнено: ${totalCount})` : 'По запросу (Ожидает)';
+                        dotsHtml = `<div class="status-dots"><span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
                     }
                     
+                    dotsHtml += '</div>';
+                    
+                    filteredMachs.push({
+                        mach,
+                        dotsHtml
+                    });
+                });
+                
+                if (filteredMachs.length === 0) return;
+                
+                let addrHtml = '';
+                filteredMachs.forEach(({ mach, dotsHtml }) => {
                     addrHtml += `
                         <div class="list-item clickable" onclick="openServiceModal(${mach.id})" data-machine-text="${mach.model.toLowerCase()} ${mach.serial.toLowerCase()} ${mach.inv ? mach.inv.toLowerCase() : ''}${mach.employee ? ' ' + mach.employee.toLowerCase() : ''}">
                             <div class="list-item-main">
                                 <span class="list-item-title">${mach.model}</span>
                                 <span class="list-item-subtitle">S/N: ${mach.serial} ${mach.inv ? ' | Inv: ' + mach.inv : ''}${mach.employee ? ' | Отв: ' + mach.employee : ''}</span>
                             </div>
-                            <div style="display: flex; gap: 4px; align-items: center;">
-                                ${badgesHtml}
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                ${dotsHtml}
+                                <button class="btn-outline square-btn tooltip" onclick="event.stopPropagation(); openProblemModal(${mach.id})" title="Зафиксировать поломку/ремонт" style="padding: 4px 6px; min-height: 24px; min-width: 24px; font-size: 11px; margin: 0; border-radius: 4px; border-color: var(--danger-color); color: var(--danger-color);">⚠️</button>
                             </div>
                         </div>
                     `;
                 });
                 
-                // Calculate address progress text inline
+                // Calculate progress text
                 let addrProgressText = '';
                 if (addrTargetH1 > 0 || addrTargetH2 > 0) {
                     const parts = [];
@@ -1294,7 +1325,7 @@ function renderDashboard() {
                             </div>
                         </summary>
                         <div class="details-content dash-address-content">
-                            <button class="btn-outline" style="width:100%; margin-bottom:8px; font-size:12px; padding:6px 12px;" onclick="openMapInKodular('${addr.bank}, ${addr.address}')">🗺️ Показать на карте</button>
+                            <button class="btn-outline" style="width:100%; margin-bottom:8px; font-size:12px; padding:6px 12px;" onclick="openMapInKodular('${addr.bank}, ${addr.address}')">🗺️ Проложить маршрут</button>
                             <div class="form-group" style="margin-bottom: 10px;">
                                 <input type="text" placeholder="🔍 Поиск по адресу (модель, S/N)..." class="address-search-input" oninput="applyAddressSearch(this)" style="margin-bottom: 0; padding: 8px 10px; font-size: 13px;">
                             </div>
@@ -1518,11 +1549,30 @@ function renderHistory() {
     const searchVal = document.getElementById('historySearch').value.toLowerCase().trim();
     if (!container) return;
     
+    // Update weekly statistics
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const weeklyRecords = db.history.filter(h => new Date(h.date) >= oneWeekAgo);
+    const weeklyCount = weeklyRecords.length;
+    const weeklyVerified = weeklyRecords.filter(h => h.checked).length;
+    
+    const statsCountEl = document.getElementById('statsWeeklyCount');
+    const statsVerifiedEl = document.getElementById('statsWeeklyVerified');
+    if (statsCountEl) statsCountEl.innerText = `${weeklyCount} ТО`;
+    if (statsVerifiedEl) statsVerifiedEl.innerText = `${weeklyVerified} подтверждено`;
+    
     let filtered = db.history;
+    
+    // Apply segmented control verification filters
+    if (historyFilterStatus === 'unverified') {
+        filtered = db.history.filter(h => !h.checked);
+    } else if (historyFilterStatus === 'verified') {
+        filtered = db.history.filter(h => h.checked);
+    }
     
     // Search filter logic
     if (searchVal) {
-        filtered = db.history.filter(h => {
+        filtered = filtered.filter(h => {
             const m = db.machines.find(x => x.id === h.machineId);
             const a = m ? db.addresses.find(x => x.id === m.addressId) : null;
             
@@ -1547,7 +1597,7 @@ function renderHistory() {
     }
     
     if (filtered.length === 0) {
-        container.innerHTML = '<p style="text-align:center; padding: 20px 0; color:var(--text-muted)">История обслуживания пуста.</p>';
+        container.innerHTML = '<p style="text-align:center; padding: 20px 0; color:var(--text-muted)">История обслуживания пуста или нет записей с выбранным фильтром.</p>';
         return;
     }
     
@@ -1630,12 +1680,19 @@ function renderHistory() {
             `;
         });
         
+        // Show double-check icon for mass verification of unverified items in this day
+        const hasUnchecked = items.some(item => !item.checked);
+        const verifyAllBtn = hasUnchecked ? `
+            <button class="btn-outline square-btn tooltip" onclick="event.stopPropagation(); verifyAllForDay('${dayStr.replace(/'/g, "\\'")}')" title="Подтвердить все за этот день" style="padding: 2px 6px; font-size: 11px; margin: 0 4px; min-height: 22px; height: 22px; line-height: 1; border-radius: 4px; color: var(--success-color); border-color: var(--success-color);">✓✓</button>
+        ` : '';
+        
         html += `
             <details class="history-day-collapsible" ${isOpen}>
                 <summary class="history-day-summary">
                     <span>📅 ${dayStr}</span>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span class="badge info" style="background-color: var(--primary-color); color: #fff; padding: 2px 8px; font-size:11px; border-radius:10px;">${items.length}</span>
+                        ${verifyAllBtn}
                         <span class="details-indicator">▼</span>
                     </div>
                 </summary>
@@ -2046,11 +2103,130 @@ async function stopScanner() {
     scannerSuccessCallback = null;
 }
 
-// Expose scanner functions globally
+// =========================================================================
+// HAPTIC FEEDBACK (TACTILE VIBRATION)
+// =========================================================================
+function triggerHapticFeedback() {
+    if (navigator.vibrate) {
+        navigator.vibrate(50);
+    } else if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) {
+        window.Capacitor.Plugins.Haptics.impact({ style: 'LIGHT' }).catch(() => {});
+    }
+}
+
+// =========================================================================
+// DARK THEME CONTROLLER
+// =========================================================================
+function toggleDarkTheme(isDark) {
+    if (isDark) {
+        document.body.classList.add('dark');
+        localStorage.setItem('fsm_theme', 'dark');
+    } else {
+        document.body.classList.remove('dark');
+        localStorage.setItem('fsm_theme', 'light');
+    }
+    const toggleSetting = document.getElementById('darkThemeToggle');
+    if (toggleSetting) toggleSetting.checked = isDark;
+}
+
+// =========================================================================
+// DATABASE EXPORT / IMPORT CONTROLLER
+// =========================================================================
+function exportDatabase() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `fsm_db_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    showToast('📤 База данных успешно экспортирована!');
+}
+
+function importDatabase(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const parsed = JSON.parse(e.target.result);
+            if (!parsed.models || !parsed.banks || !parsed.routes || !parsed.cities || !parsed.addresses || !parsed.machines || !parsed.history) {
+                throw new Error("Неверная структура резервной копии");
+            }
+            
+            doubleConfirm("ИМПОРТИРОВАТЬ базу данных (это полностью перезапишет текущую базу)", () => {
+                db = parsed;
+                saveData();
+                triggerHapticFeedback();
+                showToast('📥 База данных успешно восстановлена!');
+                setTimeout(() => window.location.reload(), 1000);
+            });
+        } catch (err) {
+            showToast('❌ Ошибка импорта: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
+}
+
+// =========================================================================
+// EMERGENCY REPAIR INCIDENT LOG
+// =========================================================================
+function openProblemModal(machineId) {
+    openServiceModal(machineId);
+    document.getElementById('modalTitle').innerText = `⚠️ Запись ремонта / Поломки: ${db.machines.find(m => m.id == machineId).model}`;
+    document.getElementById('modalNotes').placeholder = "Опишите неисправность или выполненный ремонт...";
+    document.getElementById('modalNotes').focus();
+}
+
+// =========================================================================
+// HISTORY FILTERING & MASS VERIFICATION STATE
+// =========================================================================
+let historyFilterStatus = 'all';
+
+function setHistoryFilter(status) {
+    historyFilterStatus = status;
+    document.querySelectorAll('.segment-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const activeBtn = document.getElementById('histFilter-' + status);
+    if (activeBtn) activeBtn.classList.add('active');
+    renderHistory();
+}
+
+function verifyAllForDay(dayStr) {
+    const records = db.history.filter(h => {
+        const dateObj = new Date(h.date);
+        const days = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+        const months = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+        const curDayStr = `${days[dateObj.getDay()]}, ${dateObj.getDate()} ${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+        return curDayStr === dayStr;
+    });
+    
+    const unchecked = records.filter(r => !r.checked);
+    if (unchecked.length > 0) {
+        doubleConfirm(`ПОДТВЕРДИТЬ все выполненные ТО за ${dayStr}`, () => {
+            unchecked.forEach(r => r.checked = true);
+            saveData();
+            triggerHapticFeedback();
+            showToast('✅ Все ТО за день подтверждены!');
+        });
+    }
+}
+
+// Expose scanner and custom functions globally
 window.startScanner = startScanner;
 window.stopScanner = stopScanner;
 window.switchCamera = switchCamera;
 window.toggleHistoryChecked = toggleHistoryChecked;
 window.filterDashboard = filterDashboard;
+window.toggleDarkTheme = toggleDarkTheme;
+window.exportDatabase = exportDatabase;
+window.importDatabase = importDatabase;
+window.openProblemModal = openProblemModal;
+window.setHistoryFilter = setHistoryFilter;
+window.verifyAllForDay = verifyAllForDay;
+window.triggerHapticFeedback = triggerHapticFeedback;
 
 
