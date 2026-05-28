@@ -529,8 +529,7 @@ function openAddMachineModal(addressId) {
     
     populateDropdown('addMachModel', db.models);
     
-    const preselectedEmployee = localStorage.getItem('fsm_default_employee') || '';
-    populateDropdown('addMachEmployee', db.employees, preselectedEmployee);
+    populateDropdown('addMachEmployee', db.employees, '');
     
     document.getElementById('addMachSerial').value = '';
     document.getElementById('addMachInv').value = '';
@@ -762,9 +761,8 @@ function openServiceModal(machineId) {
     document.getElementById('modalParts').value = '';
     document.querySelectorAll('.work-check').forEach(cb => cb.checked = false);
     
-    // Populate performer dropdown and preselect machine's responsible employee or default performer
-    const preselectedEmployee = m.employee || localStorage.getItem('fsm_default_employee') || '';
-    populateDropdown('modalEmployee', db.employees, preselectedEmployee);
+    // Populate performer dropdown and preselect machine's responsible employee
+    populateDropdown('modalEmployee', db.employees, m.employee || '');
     
     document.getElementById('serviceModal').style.display = 'flex';
 }
@@ -1015,11 +1013,7 @@ function selectCustomOption(inputId, value, label = null) {
             wrapper.classList.remove('open');
         }
         
-        // Default Employee selection hook
-        if (inputId === 'defaultEmployee') {
-            localStorage.setItem('fsm_default_employee', value);
-            showToast('👤 Исполнитель по умолчанию сохранен');
-        }
+        // Default Employee selection hook removed
     }
 }
 
@@ -1072,8 +1066,7 @@ function renderSettings() {
     renderDictContainer('employeeListContainer', 'employees');
     renderDictContainer('cityListContainer', 'cities');
     
-    // Populate default performer dropdown
-    populateDropdown('defaultEmployee', db.employees, localStorage.getItem('fsm_default_employee') || '');
+    // Default performer dropdown removed
     
     // Check dark mode toggle state
     const themeToggle = document.getElementById('darkThemeToggle');
@@ -1123,6 +1116,15 @@ function renderDashboard() {
         `;
         return;
     }
+    
+    // Save open state before re-rendering
+    const openRoutes = Array.from(document.querySelectorAll('#dashboardList .dash-route[open]')).map(el => el.getAttribute('data-route-id') || '');
+    const openCities = Array.from(document.querySelectorAll('#dashboardList .dash-city[open]')).map(el => el.getAttribute('data-city-id') || '');
+    const openAddresses = Array.from(document.querySelectorAll('#dashboardList .dash-address[open]')).map(el => el.getAttribute('data-address-id') || '');
+    const isFirstLoad = document.querySelectorAll('#dashboardList .dash-route').length === 0;
+    
+    const searchInput = document.getElementById('dashboardSearch');
+    const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
     
     let html = '';
     const onlyPendingToggle = document.getElementById('onlyPendingToggle');
@@ -1315,8 +1317,10 @@ function renderDashboard() {
                 totalTargetH2 += addrTargetH2;
                 totalCompletedH2 += addrCompletedH2;
                 
+                const isAddrOpen = openAddresses.includes(String(addr.id)) || (searchVal !== '') ? 'open' : '';
+                
                 cityAddressesHtml += `
-                    <details class="dash-address" data-address-text="${addr.bank.toLowerCase()} ${addr.address.toLowerCase()}">
+                    <details class="dash-address" ${isAddrOpen} data-address-id="${addr.id}" data-address-text="${addr.bank.toLowerCase()} ${addr.address.toLowerCase()}">
                         <summary style="display: flex; align-items: center; justify-content: space-between;">
                             <span>📍 ${addr.bank}, ${addr.address}</span>
                             <div style="display:flex; align-items:center; gap:8px; margin-left: auto;">
@@ -1325,7 +1329,7 @@ function renderDashboard() {
                             </div>
                         </summary>
                         <div class="details-content dash-address-content">
-                            <button class="btn-outline" style="width:100%; margin-bottom:8px; font-size:12px; padding:6px 12px;" onclick="openMapInKodular('${addr.bank}, ${addr.address}')">🗺️ Проложить маршрут</button>
+                            <button class="btn-outline" style="width:100%; margin-bottom:8px; font-size:12px; padding:6px 12px;" onclick="openMapInKodular('${addr.address.replace(/'/g, "\\'")}')">🗺️ Проложить маршрут</button>
                             <div class="form-group" style="margin-bottom: 10px;">
                                 <input type="text" placeholder="🔍 Поиск по адресу (модель, S/N)..." class="address-search-input" oninput="applyAddressSearch(this)" style="margin-bottom: 0; padding: 8px 10px; font-size: 13px;">
                             </div>
@@ -1352,64 +1356,72 @@ function renderDashboard() {
                 cityProgressText = actualComp > 0 ? `Выполнено: ${actualComp}` : 'По запросу';
             }
             
-            routeHtml += `
-                <details class="dash-city" open>
-                    <summary style="display: flex; align-items: center; justify-content: space-between;">
-                        <span>🏙️ ${city}</span>
-                        <div style="display:flex; align-items:center; gap:8px; margin-left: auto;">
-                            <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">${cityProgressText}</span>
-                            <span class="details-indicator">▼</span>
+            const isCityOpen = isFirstLoad || openCities.includes(route + '::' + city) || (searchVal !== '') ? 'open' : '';
+            
+            if (cityAddressesHtml !== '') {
+                routeHtml += `
+                    <details class="dash-city" ${isCityOpen} data-city-id="${route}::${city}">
+                        <summary style="display: flex; align-items: center; justify-content: space-between;">
+                            <span>🏙️ ${city}</span>
+                            <div style="display:flex; align-items:center; gap:8px; margin-left: auto;">
+                                <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">${cityProgressText}</span>
+                                <span class="details-indicator">▼</span>
+                            </div>
+                        </summary>
+                        <div class="details-content dash-city-content">
+                            ${cityAddressesHtml}
                         </div>
-                    </summary>
-                    <div class="details-content dash-city-content">
-                        ${cityAddressesHtml}
-                    </div>
-                </details>
-            `;
+                    </details>
+                `;
+            }
         });
         
         // Compute progress bar percentages for Route
         const percentH1 = totalTargetH1 > 0 ? Math.round((totalCompletedH1 / totalTargetH1) * 100) : (totalCompletedH1 > 0 ? 100 : 0);
         const percentH2 = totalTargetH2 > 0 ? Math.round((totalCompletedH2 / totalTargetH2) * 100) : (totalCompletedH2 > 0 ? 100 : 0);
         
-        html += `
-            <details class="dash-route">
-                <summary>
-                    <div style="flex:1; display:flex; flex-direction:column; gap:6px; padding-right:12px;">
-                        <span>🚗 ${route}</span>
-                        <div class="progress-bars-wrapper" style="display: flex; flex-direction: column; gap: 8px;">
-                            <!-- I половина -->
-                            <div class="progress-bar-container" style="margin-top: 2px;">
-                                <div class="progress-info" style="font-size: 11px; margin-bottom: 2px;">
-                                    <span>I половина (1-15): ${percentH1}%</span>
-                                    <span>${totalCompletedH1}/${totalTargetH1} ТО</span>
+        const isRouteOpen = !isFirstLoad && openRoutes.includes(route) || (searchVal !== '') ? 'open' : '';
+        
+        if (routeHtml !== '') {
+            html += `
+                <details class="dash-route" ${isRouteOpen} data-route-id="${route}">
+                    <summary>
+                        <div style="flex:1; display:flex; flex-direction:column; gap:6px; padding-right:12px;">
+                            <span>🚗 ${route}</span>
+                            <div class="progress-bars-wrapper" style="display: flex; flex-direction: column; gap: 8px;">
+                                <!-- I половина -->
+                                <div class="progress-bar-container" style="margin-top: 2px;">
+                                    <div class="progress-info" style="font-size: 11px; margin-bottom: 2px;">
+                                        <span>I половина (1-15): ${percentH1}%</span>
+                                        <span>${totalCompletedH1}/${totalTargetH1} ТО</span>
+                                    </div>
+                                    <div class="progress-bar-bg" style="height: 6px;">
+                                        <div class="progress-bar-fill" style="width: ${percentH1}%; background-color: var(--primary-color);"></div>
+                                    </div>
                                 </div>
-                                <div class="progress-bar-bg" style="height: 6px;">
-                                    <div class="progress-bar-fill" style="width: ${percentH1}%; background-color: var(--primary-color);"></div>
-                                </div>
-                            </div>
-                            <!-- II половина -->
-                            <div class="progress-bar-container" style="margin-top: 0;">
-                                <div class="progress-info" style="font-size: 11px; margin-bottom: 2px;">
-                                    <span>II половина (16+): ${percentH2}%</span>
-                                    <span>${totalCompletedH2}/${totalTargetH2} ТО</span>
-                                </div>
-                                <div class="progress-bar-bg" style="height: 6px;">
-                                    <div class="progress-bar-fill" style="width: ${percentH2}%; background-color: #00838f;"></div>
+                                <!-- II половина -->
+                                <div class="progress-bar-container" style="margin-top: 0;">
+                                    <div class="progress-info" style="font-size: 11px; margin-bottom: 2px;">
+                                        <span>II половина (16+): ${percentH2}%</span>
+                                        <span>${totalCompletedH2}/${totalTargetH2} ТО</span>
+                                    </div>
+                                    <div class="progress-bar-bg" style="height: 6px;">
+                                        <div class="progress-bar-fill" style="width: ${percentH2}%; background-color: #00838f;"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        <span class="details-indicator">▼</span>
+                    </summary>
+                    <div class="details-content">
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <input type="text" placeholder="🔍 Поиск по маршруту (модель, S/N, адрес)..." class="route-search-input" oninput="applyRouteSearch(this)" style="margin-bottom: 0; padding: 8px 12px; font-size: 14px;">
+                        </div>
+                        ${routeHtml}
                     </div>
-                    <span class="details-indicator">▼</span>
-                </summary>
-                <div class="details-content">
-                    <div class="form-group" style="margin-bottom: 12px;">
-                        <input type="text" placeholder="🔍 Поиск по маршруту (модель, S/N, адрес)..." class="route-search-input" oninput="applyRouteSearch(this)" style="margin-bottom: 0; padding: 8px 12px; font-size: 14px;">
-                    </div>
-                    ${routeHtml}
-                </div>
-            </details>
-        `;
+                </details>
+            `;
+        }
     });
     
     container.innerHTML = html;
@@ -1486,6 +1498,10 @@ function renderAddresses() {
                                     </div>
                                 </div>
                             </summary>
+                            
+                            <div style="padding: 0 8px; margin-top: 8px;">
+                                <button class="btn-outline" style="width:100%; margin-bottom:8px; font-size:12px; padding:6px 12px;" onclick="openMapInKodular('${a.address.replace(/'/g, "\\'")}')">🗺️ Показать на карте</button>
+                            </div>
                             
                             <div class="machines-group" style="margin-top: 8px; padding: 8px; background: #fafafa;">
                                 <div class="machines-group-title" style="font-size: 11px; margin-bottom: 6px;">Оборудование на точке</div>
@@ -1622,10 +1638,14 @@ function renderHistory() {
         dayGroups[dayStr].push(h);
     });
     
+    // Save open state before re-rendering
+    const openDays = Array.from(document.querySelectorAll('#historyList .history-day-collapsible[open]')).map(el => el.getAttribute('data-day-id') || '');
+    const isHistoryFirstLoad = document.querySelectorAll('#historyList .history-day-collapsible').length === 0;
+
     let html = '';
-    const isOpen = searchVal !== '' ? 'open' : '';
     
     dayKeys.forEach(dayStr => {
+        const isDayOpen = !isHistoryFirstLoad && openDays.includes(dayStr) || (searchVal !== '') ? 'open' : '';
         const items = dayGroups[dayStr];
         let itemsHtml = '';
         
@@ -1687,7 +1707,7 @@ function renderHistory() {
         ` : '';
         
         html += `
-            <details class="history-day-collapsible" ${isOpen}>
+            <details class="history-day-collapsible" ${isDayOpen} data-day-id="${dayStr}">
                 <summary class="history-day-summary">
                     <span>📅 ${dayStr}</span>
                     <div style="display: flex; align-items: center; gap: 8px;">
