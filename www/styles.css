@@ -1780,3 +1780,80 @@ body.dark .toggle-track {
     padding-bottom: 4px;
 }
 
+/* =========================================================================
+   ROLE PROFILE & AUTHORIZATION
+   ========================================================================= */
+.profile-box {
+    transition: var(--transition-smooth);
+}
+body.dark .profile-box {
+    background: rgba(59, 130, 246, 0.05) !important;
+    border-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+/* =========================================================================
+   MACHINE SERVICE HISTORY TIMELINE
+   ========================================================================= */
+.mach-history-timeline {
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.mach-history-item {
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border-color);
+    position: relative;
+}
+
+.mach-history-item:last-child {
+    border-bottom: none;
+}
+
+.mach-history-date {
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 2px;
+}
+
+.mach-history-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+
+.mach-history-tasks {
+    margin-bottom: 4px;
+}
+
+.mach-history-task-tag {
+    display: inline-block;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    margin-right: 4px;
+    margin-bottom: 2px;
+    color: var(--text-secondary);
+}
+
+body.dark .mach-history-task-tag {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.mach-history-notes {
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+.mach-history-parts {
+    margin-top: 2px;
+    color: var(--info-color);
+}
+
+body.role-worker .admin-only {
+    display: none !important;
+}
+
+body.role-worker #tab-settings .search-row {
+    display: none !important;
+}

@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=14.0">
+    <link rel="stylesheet" href="styles.css?v=15.0">
 </head>
 <body>
 
@@ -86,7 +86,7 @@
 
         <!-- Вкладка: Адреса и Машины -->
         <section id="tab-addresses" class="tab-content">
-            <details class="card glass-card" style="margin-bottom: 15px; padding: 0 15px;">
+            <details class="card glass-card admin-only" style="margin-bottom: 15px; padding: 0 15px;">
                 <summary style="font-weight: 600; cursor: pointer; color: var(--primary-color); padding: 15px 0; outline: none; list-style: none; display: flex; justify-content: space-between; align-items: center;">
                     <span style="display:flex; align-items:center; gap:8px;">📍 Добавить новый адрес</span>
                     <span class="details-indicator">▼</span>
@@ -166,6 +166,15 @@
         <section id="tab-settings" class="tab-content">
             <div class="card glass-card">
                 <h3>⚙️ Интерфейс и профиль</h3>
+                <div class="profile-box" id="profileBox" style="margin-bottom: 15px; padding: 12px; background: rgba(0, 86, 179, 0.05); border-radius: var(--radius-md); border: 1px solid rgba(0, 86, 179, 0.15);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
+                        <div>
+                            <span style="font-size:11px; color:var(--text-muted); display: block;">Вы вошли как:</span>
+                            <div style="font-size:14px; font-weight:bold; color:var(--primary-color);" id="profileRoleText">Работник</div>
+                        </div>
+                        <button class="btn-outline" onclick="logoutRole()" style="padding: 4px 10px; font-size: 11px; min-height: 28px; font-weight: 500; margin: 0; width: auto;">Сменить роль</button>
+                    </div>
+                </div>
                 <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <label style="margin: 0; font-weight: 600;">Темная тема</label>
                     <label class="toggle-container">
@@ -177,11 +186,13 @@
                 </div>
 
 
-                <div class="settings-section-title">Резервное копирование</div>
-                <div class="flex-row" style="gap: 8px; margin-top: 8px;">
-                    <button class="btn-outline" onclick="exportDatabase()" style="flex:1; font-size:12px; padding:8px 10px;">📤 Экспорт JSON</button>
-                    <button class="btn-outline" onclick="document.getElementById('importFileInput').click()" style="flex:1; font-size:12px; padding:8px 10px;">📥 Импорт JSON</button>
-                    <input type="file" id="importFileInput" style="display:none;" accept=".json" onchange="importDatabase(this)">
+                <div class="admin-only">
+                    <div class="settings-section-title">Резервное копирование</div>
+                    <div class="flex-row" style="gap: 8px; margin-top: 8px;">
+                        <button class="btn-outline" onclick="exportDatabase()" style="flex:1; font-size:12px; padding:8px 10px;">📤 Экспорт JSON</button>
+                        <button class="btn-outline" onclick="document.getElementById('importFileInput').click()" style="flex:1; font-size:12px; padding:8px 10px;">📥 Импорт JSON</button>
+                        <input type="file" id="importFileInput" style="display:none;" accept=".json" onchange="importDatabase(this)">
+                    </div>
                 </div>
             </div>
 
@@ -383,13 +394,18 @@
             <div class="characteristics-box">
                 <h4>⚙️ Характеристики</h4>
                 <div id="detCharsList" class="chars-list"></div>
-                <div class="flex-row char-input-row">
+                <div class="flex-row char-input-row admin-only">
                     <input type="text" id="detNewCharText" placeholder="Напр: Прошивка v2.1">
                     <button class="btn-success btn-square" onclick="addCharacteristic()">+</button>
                 </div>
             </div>
+            
+            <div class="characteristics-box" style="margin-top: 15px;">
+                <h4>📜 История ремонта машинки</h4>
+                <div id="detMachHistoryList" class="mach-history-timeline" style="max-height: 180px; overflow-y: auto; padding-right: 4px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px; background: rgba(0,0,0,0.01);"></div>
+            </div>
 
-            <div class="action-buttons-group">
+            <div class="action-buttons-group admin-only">
                 <button class="btn-success" onclick="saveEditMachine()">💾 Сохранить изменения</button>
                 <button class="btn-danger" onclick="deleteMachine()">🗑️ Удалить машину</button>
             </div>
@@ -459,6 +475,13 @@
             </div>
             
             <button class="btn-success btn-full" onclick="saveService()">✅ Сохранить ТО</button>
+            
+            <div style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                <button class="btn-outline btn-full" id="btnTogglePrevService" onclick="togglePrevServiceHistory()" style="font-size:12px; padding:6px; min-height: 32px; margin-top:0;">📜 Прошлые ремонты оборудования</button>
+                <div id="prevServiceHistoryContainer" style="display: none; margin-top: 10px; max-height: 160px; overflow-y: auto; padding: 8px; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); background: rgba(0,0,0,0.01);">
+                    <div id="prevServiceHistoryList"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -585,9 +608,27 @@
         </button>
     </nav>
 
+    <!-- Модальное окно: Выбор роли при входе -->
+    <div id="roleAuthModal" class="modal" style="z-index: 2000; display: none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content" style="max-width: 360px; padding: 25px; text-align: center;">
+            <h3 style="margin-top: 0; margin-bottom: 10px; display:flex; align-items:center; justify-content:center; gap:8px;">🛠️ Авторизация</h3>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.4;">Выберите вашу роль в системе для работы с приложением:</p>
+            
+            <div class="form-group" style="text-align: left; margin-bottom: 20px;">
+                <label for="userRoleSelect">Ваша роль</label>
+                <div class="custom-select-wrapper" id="wrapper-userRoleSelect">
+                    <input type="hidden" id="userRoleSelect" value="Работник">
+                </div>
+            </div>
+            
+            <button class="btn-success btn-full" onclick="confirmRole()" style="height: 44px; font-size: 15px; font-weight:bold; margin-top: 10px;">Подтвердить</button>
+        </div>
+    </div>
+
     <!-- App Script logic -->
     <script src="html5-qrcode.min.js"></script>
-    <script src="app.js?v=14.0"></script>
+    <script src="app.js?v=15.0"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>

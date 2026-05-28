@@ -85,6 +85,7 @@ db.history = deduplicateById(ensureArray(db.history));
 document.addEventListener('DOMContentLoaded', () => {
     const savedTheme = localStorage.getItem('fsm_theme') || 'light';
     toggleDarkTheme(savedTheme === 'dark');
+    checkUserRole();
     renderAll();
     initializeFirebase();
 });
@@ -586,6 +587,7 @@ function openMachineDetails(machineId) {
     document.getElementById('detMachFreq').value = m.freq;
     
     renderCharacteristicsList(m.id);
+    renderMachineHistory(m.id, 'detMachHistoryList');
     document.getElementById('machineDetailsModal').style.display = 'flex';
 }
 
@@ -680,7 +682,7 @@ function renderCharacteristicsList(machineId) {
     list.innerHTML = m.characteristics.map(c => `
         <div class="list-item" style="background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 6px;">
             <span style="font-size: 13px;">${c.text}</span>
-            <div class="actions">
+            <div class="actions admin-only">
                 <button class="btn-outline" style="padding: 4px 8px; font-size:11px;" onclick="editCharacteristic(${m.id}, ${c.id})">✏️</button>
                 <button class="btn-danger" style="padding: 4px 8px; font-size:11px;" onclick="deleteCharacteristic(${m.id}, ${c.id})">🗑️</button>
             </div>
@@ -763,6 +765,13 @@ function openServiceModal(machineId) {
     
     // Populate performer dropdown and preselect machine's responsible employee
     populateDropdown('modalEmployee', db.employees, m.employee || '');
+    
+    // Load past repairs history inside service modal
+    renderMachineHistory(m.id, 'prevServiceHistoryList');
+    const prevHistoryContainer = document.getElementById('prevServiceHistoryContainer');
+    if (prevHistoryContainer) prevHistoryContainer.style.display = 'none';
+    const btnToggle = document.getElementById('btnTogglePrevService');
+    if (btnToggle) btnToggle.innerText = '📜 Прошлые ремонты оборудования';
     
     document.getElementById('serviceModal').style.display = 'flex';
 }
@@ -1088,7 +1097,7 @@ function renderDictContainer(containerId, type) {
     container.innerHTML = list.map(item => `
         <div class="dict-tag">
             <span class="dict-tag-text">${item}</span>
-            <div class="dict-tag-actions">
+            <div class="dict-tag-actions admin-only">
                 <button class="dict-tag-btn" onclick="editDictItem('${type}', '${item}')" title="Редактировать">✏️</button>
                 <button class="dict-tag-btn del" onclick="deleteDictItem('${type}', '${item}')" title="Удалить">🗑️</button>
             </div>
@@ -1317,6 +1326,8 @@ function renderDashboard() {
                 totalTargetH2 += addrTargetH2;
                 totalCompletedH2 += addrCompletedH2;
                 
+                const addrStatus = calculateAggregateStatus(addrMachines);
+                const addrDots = getStatusDotsHtmlForAggregated(addrStatus);
                 const isAddrOpen = openAddresses.includes(String(addr.id)) || (searchVal !== '') ? 'open' : '';
                 
                 cityAddressesHtml += `
@@ -1324,6 +1335,7 @@ function renderDashboard() {
                         <summary style="display: flex; align-items: center; justify-content: space-between;">
                             <span>📍 ${addr.bank}, ${addr.address}</span>
                             <div style="display:flex; align-items:center; gap:8px; margin-left: auto;">
+                                ${addrDots}
                                 <span style="font-size: 11px; color: var(--text-muted); font-weight: 500; margin-right: 4px;">${addrProgressText}</span>
                                 <span class="details-indicator">▼</span>
                             </div>
@@ -1356,6 +1368,13 @@ function renderDashboard() {
                 cityProgressText = actualComp > 0 ? `Выполнено: ${actualComp}` : 'По запросу';
             }
             
+            const cityMachines = db.machines.filter(m => {
+                const a = db.addresses.find(addr => addr.id == m.addressId);
+                return a && a.route === route && (a.city || 'Кишинев') === city;
+            });
+            const cityStatus = calculateAggregateStatus(cityMachines);
+            const cityDots = getStatusDotsHtmlForAggregated(cityStatus);
+            
             const isCityOpen = isFirstLoad || openCities.includes(route + '::' + city) || (searchVal !== '') ? 'open' : '';
             
             if (cityAddressesHtml !== '') {
@@ -1364,6 +1383,7 @@ function renderDashboard() {
                         <summary style="display: flex; align-items: center; justify-content: space-between;">
                             <span>🏙️ ${city}</span>
                             <div style="display:flex; align-items:center; gap:8px; margin-left: auto;">
+                                ${cityDots}
                                 <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">${cityProgressText}</span>
                                 <span class="details-indicator">▼</span>
                             </div>
@@ -1380,6 +1400,13 @@ function renderDashboard() {
         const percentH1 = totalTargetH1 > 0 ? Math.round((totalCompletedH1 / totalTargetH1) * 100) : (totalCompletedH1 > 0 ? 100 : 0);
         const percentH2 = totalTargetH2 > 0 ? Math.round((totalCompletedH2 / totalTargetH2) * 100) : (totalCompletedH2 > 0 ? 100 : 0);
         
+        const routeMachines = db.machines.filter(m => {
+            const a = db.addresses.find(addr => addr.id == m.addressId);
+            return a && a.route === route;
+        });
+        const routeStatus = calculateAggregateStatus(routeMachines);
+        const routeDots = getStatusDotsHtmlForAggregated(routeStatus);
+        
         const isRouteOpen = !isFirstLoad && openRoutes.includes(route) || (searchVal !== '') ? 'open' : '';
         
         if (routeHtml !== '') {
@@ -1387,7 +1414,10 @@ function renderDashboard() {
                 <details class="dash-route" ${isRouteOpen} data-route-id="${route}">
                     <summary>
                         <div style="flex:1; display:flex; flex-direction:column; gap:6px; padding-right:12px;">
-                            <span>🚗 ${route}</span>
+                            <div style="display:flex; align-items:center; justify-content:space-between;">
+                                <span>🚗 ${route}</span>
+                                ${routeDots}
+                            </div>
                             <div class="progress-bars-wrapper" style="display: flex; flex-direction: column; gap: 8px;">
                                 <!-- I половина -->
                                 <div class="progress-bar-container" style="margin-top: 2px;">
@@ -1492,8 +1522,8 @@ function renderAddresses() {
                                         <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Маршрут: ${a.route}</div>
                                     </div>
                                     <div class="actions" style="display: flex; gap: 8px; align-items: center; padding-right: 4px;">
-                                        <button class="btn-outline" style="padding:4px 8px;" onclick="event.stopPropagation(); openEditAddress(${a.id})" title="Редактировать адрес">✏️</button>
-                                        <button class="btn-danger" style="padding:4px 8px;" onclick="event.stopPropagation(); deleteAddress(${a.id})" title="Удалить адрес">🗑️</button>
+                                        <button class="btn-outline admin-only" style="padding:4px 8px;" onclick="event.stopPropagation(); openEditAddress(${a.id})" title="Редактировать адрес">✏️</button>
+                                        <button class="btn-danger admin-only" style="padding:4px 8px;" onclick="event.stopPropagation(); deleteAddress(${a.id})" title="Удалить адрес">🗑️</button>
                                         <span class="details-indicator" style="margin-left: 8px;">▼</span>
                                     </div>
                                 </div>
@@ -1511,7 +1541,7 @@ function renderAddresses() {
                                 <div class="machines-card-list">
                                     ${machHtml}
                                 </div>
-                                <button class="btn-primary" style="padding: 6px; font-size:11px; margin-top:8px; width:100%;" onclick="openAddMachineModal(${a.id})">+ Добавить машину</button>
+                                <button class="btn-primary admin-only" style="padding: 6px; font-size:11px; margin-top:8px; width:100%;" onclick="openAddMachineModal(${a.id})">+ Добавить машину</button>
                             </div>
                         </details>
                     </div>
@@ -1673,7 +1703,7 @@ function renderHistory() {
                 <div class="timeline-item ${h.checked ? 'verified-item' : ''}">
                     <div class="timeline-header" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <input type="checkbox" class="history-check-input" ${h.checked ? 'checked' : ''} onchange="toggleHistoryChecked(${h.id}, this.checked)" onclick="event.stopPropagation();">
+                            <input type="checkbox" class="history-check-input" ${h.checked ? 'checked' : ''} onchange="toggleHistoryChecked(${h.id}, this.checked)" onclick="event.stopPropagation();" ${localStorage.getItem('fsm_user_role') === 'Администратор' ? '' : 'disabled'}>
                             <div class="timeline-title">${model}</div>
                         </div>
                         <div class="timeline-time">${timeStr}</div>
@@ -1692,7 +1722,7 @@ function renderHistory() {
                         ${h.parts ? `<div class="timeline-notes" style="border-left-color: var(--primary-color);">🛠️ Использованные запчасти:<br>${h.parts}</div>` : ''}
                     </div>
                     
-                    <div class="actions" style="margin-top: 12px; display:flex; justify-content:flex-end;">
+                    <div class="actions admin-only" style="margin-top: 12px; display:flex; justify-content:flex-end;">
                         <button class="btn-outline" style="padding: 4px 8px; font-size: 11px;" onclick="openEditHistory(${h.id})" title="Редактировать">✏️</button>
                         <button class="btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteHistory(${h.id})" title="Удалить">🗑️</button>
                     </div>
@@ -1702,7 +1732,8 @@ function renderHistory() {
         
         // Show double-check icon for mass verification of unverified items in this day
         const hasUnchecked = items.some(item => !item.checked);
-        const verifyAllBtn = hasUnchecked ? `
+        const isAdmin = localStorage.getItem('fsm_user_role') === 'Администратор';
+        const verifyAllBtn = (hasUnchecked && isAdmin) ? `
             <button class="btn-outline square-btn tooltip" onclick="event.stopPropagation(); verifyAllForDay('${dayStr.replace(/'/g, "\\'")}')" title="Подтвердить все за этот день" style="padding: 2px 6px; font-size: 11px; margin: 0 4px; min-height: 22px; height: 22px; line-height: 1; border-radius: 4px; color: var(--success-color); border-color: var(--success-color);">✓✓</button>
         ` : '';
         
@@ -2236,17 +2267,219 @@ function verifyAllForDay(dayStr) {
 }
 
 // Expose scanner and custom functions globally
-window.startScanner = startScanner;
-window.stopScanner = stopScanner;
-window.switchCamera = switchCamera;
-window.toggleHistoryChecked = toggleHistoryChecked;
-window.filterDashboard = filterDashboard;
-window.toggleDarkTheme = toggleDarkTheme;
 window.exportDatabase = exportDatabase;
 window.importDatabase = importDatabase;
 window.openProblemModal = openProblemModal;
 window.setHistoryFilter = setHistoryFilter;
 window.verifyAllForDay = verifyAllForDay;
 window.triggerHapticFeedback = triggerHapticFeedback;
+
+// =========================================================================
+// ROLE AUTHENTICATION & ACCESS CONTROL LOGIC
+// =========================================================================
+function checkUserRole() {
+    const role = localStorage.getItem('fsm_user_role');
+    const authModal = document.getElementById('roleAuthModal');
+    
+    if (!role) {
+        if (authModal) authModal.style.display = 'flex';
+        populateDropdown('userRoleSelect', ['Работник', 'Администратор'], 'Работник');
+        document.body.classList.remove('role-worker', 'role-admin');
+    } else {
+        if (authModal) authModal.style.display = 'none';
+        
+        if (role === 'Работник') {
+            document.body.classList.add('role-worker');
+            document.body.classList.remove('role-admin');
+        } else {
+            document.body.classList.add('role-admin');
+            document.body.classList.remove('role-worker');
+        }
+        
+        const profileRoleText = document.getElementById('profileRoleText');
+        if (profileRoleText) profileRoleText.innerText = role;
+    }
+}
+
+function confirmRole() {
+    const selectVal = document.getElementById('userRoleSelect').value || 'Работник';
+    localStorage.setItem('fsm_user_role', selectVal);
+    showToast(`👤 Роль [${selectVal}] успешно подтверждена`);
+    checkUserRole();
+    renderAll();
+}
+
+function logoutRole() {
+    localStorage.removeItem('fsm_user_role');
+    showToast('👤 Сброс роли');
+    checkUserRole();
+    renderAll();
+}
+
+// =========================================================================
+// CHECKLIST STATUS AGGREGATION & PROPAGATION
+// =========================================================================
+function calculateAggregateStatus(machinesList) {
+    if (!machinesList || machinesList.length === 0) {
+        return { h1: 'grey', h2: 'grey' };
+    }
+    
+    let hasH1Target = false;
+    let hasH2Target = false;
+    let anyH1Overdue = false;
+    let anyH1Pending = false;
+    let anyH2Pending = false;
+    
+    const now = new Date();
+    const isAfter15 = now.getDate() > 15;
+    
+    machinesList.forEach(mach => {
+        const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date));
+        const completedH1 = thisMonthServices.filter(h => new Date(h.date).getDate() <= 15).length;
+        const completedH2 = thisMonthServices.filter(h => new Date(h.date).getDate() > 15).length;
+        
+        const F = mach.freq;
+        let targetH1 = 0;
+        let targetH2 = 0;
+        
+        if (F > 0) {
+            const baseTarget = Math.floor(F / 2);
+            const rem = F % 2;
+            if (rem === 0) {
+                targetH1 = baseTarget;
+                targetH2 = baseTarget;
+            } else {
+                const excessH1 = Math.max(0, completedH1 - baseTarget);
+                const excessH2 = Math.max(0, completedH2 - baseTarget);
+                if (excessH1 >= 1) {
+                    targetH1 = baseTarget + 1;
+                    targetH2 = baseTarget;
+                } else if (excessH2 >= 1) {
+                    targetH1 = baseTarget;
+                    targetH2 = baseTarget + 1;
+                } else {
+                    if (now.getDate() <= 15) {
+                        targetH1 = baseTarget + 1;
+                        targetH2 = baseTarget;
+                    } else {
+                        targetH1 = baseTarget;
+                        targetH2 = baseTarget + 1;
+                    }
+                }
+            }
+        }
+        
+        if (targetH1 > 0) {
+            hasH1Target = true;
+            if (completedH1 < targetH1) {
+                if (isAfter15) {
+                    anyH1Overdue = true;
+                } else {
+                    anyH1Pending = true;
+                }
+            }
+        }
+        
+        if (targetH2 > 0) {
+            hasH2Target = true;
+            if (completedH2 < targetH2) {
+                anyH2Pending = true;
+            }
+        }
+        
+        if (targetH1 === 0 && targetH2 === 0) {
+            const totalCount = completedH1 + completedH2;
+            if (totalCount === 0) {
+                anyH1Pending = true;
+            }
+        }
+    });
+    
+    let h1 = 'grey';
+    if (hasH1Target) {
+        if (anyH1Overdue) h1 = 'red';
+        else if (anyH1Pending) h1 = 'blue';
+        else h1 = 'green';
+    }
+    
+    let h2 = 'grey';
+    if (hasH2Target) {
+        if (anyH2Pending) h2 = 'blue';
+        else h2 = 'green';
+    }
+    
+    return { h1, h2 };
+}
+
+function getStatusDotsHtmlForAggregated(statusObj) {
+    let html = '<div class="status-dots" style="margin-right: 4px;">';
+    
+    const h1Tooltip = statusObj.h1 === 'green' ? 'I половина: Все выполнено' : (statusObj.h1 === 'red' ? 'I половина: Есть просроченные' : (statusObj.h1 === 'blue' ? 'I половина: Есть ожидающие' : 'I половина: ТО не требуется'));
+    const h2Tooltip = statusObj.h2 === 'green' ? 'II половина: Все выполнено' : (statusObj.h2 === 'blue' ? 'II половина: Есть ожидающие' : 'II половина: ТО не требуется');
+    
+    html += `<span class="status-dot ${statusObj.h1}" data-tooltip="${h1Tooltip}"></span>`;
+    html += `<span class="status-dot ${statusObj.h2}" data-tooltip="${h2Tooltip}"></span>`;
+    
+    html += '</div>';
+    return html;
+}
+
+// =========================================================================
+// MACHINE REPAIR SERVICE HISTORY
+// =========================================================================
+function renderMachineHistory(machineId, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const records = db.history.filter(h => h.machineId == machineId).sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    if (records.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding: 10px 0; color:var(--text-muted); font-size: 12px; margin: 0;">История ремонта пуста.</p>';
+        return;
+    }
+    
+    container.innerHTML = records.map(h => {
+        const dObj = new Date(h.date);
+        const dateStr = dObj.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) + 
+                        ' ' + dObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        
+        let tasksHtml = '';
+        if (h.tasks && h.tasks.length > 0) {
+            tasksHtml = `
+                <div class="mach-history-tasks">
+                    ${h.tasks.map(t => `<span class="mach-history-task-tag">${t}</span>`).join('')}
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="mach-history-item">
+                <div class="mach-history-date">${dateStr}</div>
+                <div class="mach-history-meta">👤 ${h.employee || 'Неизвестно'} ${h.counter ? ` | 🔢 ${h.counter}` : ''}</div>
+                ${tasksHtml}
+                ${h.notes ? `<div class="mach-history-notes">${h.notes.replace(/\n/g, '<br>')}</div>` : ''}
+                ${h.parts ? `<div class="mach-history-parts">🛠️ Детали: ${h.parts}</div>` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+function togglePrevServiceHistory() {
+    const container = document.getElementById('prevServiceHistoryContainer');
+    const btn = document.getElementById('btnTogglePrevService');
+    if (!container || !btn) return;
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        btn.innerText = '📖 Скрыть прошлые ремонты';
+    } else {
+        container.style.display = 'none';
+        btn.innerText = '📜 Прошлые ремонты оборудования';
+    }
+}
+
+window.confirmRole = confirmRole;
+window.logoutRole = logoutRole;
+window.togglePrevServiceHistory = togglePrevServiceHistory;
 
 
