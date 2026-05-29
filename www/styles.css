@@ -1603,13 +1603,16 @@ body.dark .segmented-control {
     flex: 1;
     border: none;
     background: transparent;
-    padding: 8px 12px;
-    font-size: 13px;
+    padding: 8px 4px;
+    font-size: 11px;
     font-weight: 600;
     border-radius: var(--radius-sm);
     cursor: pointer;
     color: var(--text-secondary);
     transition: var(--transition-quick);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
 }
 
 .segment-btn.active {
@@ -1856,4 +1859,17 @@ body.role-worker .admin-only {
 
 body.role-worker #tab-settings .search-row {
     display: none !important;
+}
+
+/* Active route card filtering outline */
+.route-progress-card.active-filter {
+    border-color: var(--primary-color) !important;
+    background: var(--primary-glow) !important;
+    box-shadow: 0 0 0 2px var(--primary-color) inset !important;
+}
+
+/* Period selector spacing control */
+.period-control {
+    max-width: 320px;
+    margin: 0 auto 12px auto;
 }

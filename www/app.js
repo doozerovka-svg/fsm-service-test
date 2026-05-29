@@ -1186,13 +1186,33 @@ function renderDictContainer(containerId, type) {
 // Render Dashboard Check-list
 // Render Dashboard Check-list
 let dashboardActiveTab = localStorage.getItem('fsm_dash_active_tab') || 'pending';
+let dashboardActivePeriod = localStorage.getItem('fsm_dash_period') || 'month';
+let dashboardSelectedRoute = null;
 
 function setDashboardTab(tab) {
     dashboardActiveTab = tab;
     localStorage.setItem('fsm_dash_active_tab', tab);
+    dashboardSelectedRoute = null; // Reset route filter on tab switch to prevent empty view confusion
     renderDashboard();
 }
 window.setDashboardTab = setDashboardTab;
+
+function setDashboardPeriod(period) {
+    dashboardActivePeriod = period;
+    localStorage.setItem('fsm_dash_period', period);
+    renderDashboard();
+}
+window.setDashboardPeriod = setDashboardPeriod;
+
+function toggleRouteFilter(routeName) {
+    if (dashboardSelectedRoute === routeName) {
+        dashboardSelectedRoute = null;
+    } else {
+        dashboardSelectedRoute = routeName;
+    }
+    renderDashboard();
+}
+window.toggleRouteFilter = toggleRouteFilter;
 
 function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH2) {
     const F = mach.freq;
@@ -1291,12 +1311,21 @@ function renderDashboard() {
     const now = new Date();
     document.getElementById('currentMonthTitle').innerText = `Чек-лист: ${months[now.getMonth()]} ${now.getFullYear()}`;
     
-    // Maintain active segment button class
+    // Maintain active segment button class for tabs
     document.querySelectorAll('#tab-dashboard .segment-btn').forEach(btn => {
-        btn.classList.remove('active');
+        if (btn.id && btn.id.startsWith('dashTab-')) {
+            btn.classList.remove('active');
+        }
     });
     const activeBtn = document.getElementById('dashTab-' + dashboardActiveTab);
     if (activeBtn) activeBtn.classList.add('active');
+
+    // Maintain active segment button class for periods
+    document.querySelectorAll('#tab-dashboard .period-control .segment-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const activePeriodBtn = document.getElementById('periodTab-' + dashboardActivePeriod);
+    if (activePeriodBtn) activePeriodBtn.classList.add('active');
     
     if (db.machines.length === 0) {
         container.innerHTML = `
@@ -1367,14 +1396,37 @@ function renderDashboard() {
         let isOverdue = false;
         let isPending = false;
         
-        if (F > 0) {
-            isCompleted = completedH1 >= targetH1 && completedH2 >= targetH2;
-            isOverdue = !isCompleted && isAfter15 && (completedH1 < targetH1);
-            isPending = !isCompleted && !isOverdue;
+        if (dashboardActivePeriod === 'h1') {
+            if (F > 0) {
+                isCompleted = completedH1 >= targetH1;
+                isOverdue = !isCompleted && isAfter15;
+                isPending = !isCompleted && !isOverdue;
+            } else {
+                isCompleted = completedH1 > 0;
+                isOverdue = false;
+                isPending = completedH1 === 0;
+            }
+        } else if (dashboardActivePeriod === 'h2') {
+            if (F > 0) {
+                isCompleted = completedH2 >= targetH2;
+                isOverdue = false;
+                isPending = !isCompleted;
+            } else {
+                isCompleted = completedH2 > 0;
+                isOverdue = false;
+                isPending = completedH2 === 0;
+            }
         } else {
-            isCompleted = (completedH1 + completedH2) > 0;
-            isOverdue = false;
-            isPending = (completedH1 + completedH2) === 0;
+            // 'month' (default)
+            if (F > 0) {
+                isCompleted = completedH1 >= targetH1 && completedH2 >= targetH2;
+                isOverdue = !isCompleted && isAfter15 && (completedH1 < targetH1);
+                isPending = !isCompleted && !isOverdue;
+            } else {
+                isCompleted = (completedH1 + completedH2) > 0;
+                isOverdue = false;
+                isPending = (completedH1 + completedH2) === 0;
+            }
         }
         
         // Track stats for progress bars
@@ -1414,8 +1466,11 @@ function renderDashboard() {
                     fillBarColor = '#d1d5db';
                 }
                 
+                const isActiveFilter = dashboardSelectedRoute === routeName;
                 return `
-                    <div class="route-progress-card" style="background: rgba(0, 86, 179, 0.03); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: center; min-height: 48px;">
+                    <div class="route-progress-card ${isActiveFilter ? 'active-filter' : ''}" 
+                         onclick="toggleRouteFilter('${routeName.replace(/'/g, "\\'")}')"
+                         style="background: rgba(0, 86, 179, 0.03); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: center; min-height: 48px; cursor: pointer; transition: var(--transition-quick);">
                         <div style="display:flex; justify-content:space-between; margin-bottom: 6px; font-size:11px; font-weight:600; gap: 4px;">
                             <span style="color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex: 1;" title="${routeName}">${routeName}</span>
                             <span style="color:${percent === 100 ? 'var(--success-color)' : 'var(--primary-color)'}; white-space: nowrap;">${percent}% (${stats.completed}/${stats.total})</span>
@@ -1444,8 +1499,18 @@ function renderDashboard() {
     else if (dashboardActiveTab === 'completed') activeList = completedList;
     else activeList = pendingList;
     
+    // Apply route filter
+    let routeFilteredList = activeList;
+    if (dashboardSelectedRoute) {
+        routeFilteredList = activeList.filter(item => {
+            const a = item.a;
+            const routeName = a ? a.route || 'Без маршрута' : 'Без маршрута';
+            return routeName === dashboardSelectedRoute;
+        });
+    }
+    
     // Apply search filter
-    const filteredList = activeList.filter(item => {
+    const filteredList = routeFilteredList.filter(item => {
         const mach = item.mach;
         const a = item.a;
         const searchString = `${mach.model} ${mach.serial} ${mach.inv || ''} ${mach.employee || ''} ${a ? a.bank : ''} ${a ? a.address : ''} ${a ? a.city || 'Кишинев' : ''} ${a ? a.route || '' : ''}`.toLowerCase();
@@ -1457,7 +1522,7 @@ function renderDashboard() {
         container.innerHTML = `
             <div style="text-align: center; padding: 45px 20px; color: var(--text-secondary);">
                 <p style="font-size: 14px; margin-bottom: 8px;">Нет машин в данном списке.</p>
-                ${searchVal !== '' ? '<p style="font-size: 12px; color: var(--text-muted)">Попробуйте изменить поисковый запрос</p>' : ''}
+                ${searchVal !== '' || dashboardSelectedRoute ? '<p style="font-size: 12px; color: var(--text-muted)">Попробуйте сбросить фильтры или изменить поиск</p>' : ''}
             </div>
         `;
     } else {

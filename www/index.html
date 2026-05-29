@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=19.0">
+    <link rel="stylesheet" href="styles.css?v=20.0">
 </head>
 <body>
 
@@ -72,6 +72,12 @@
                 <div id="routeProgressList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;">
                     <!-- Динамические мини-прогрессбары -->
                 </div>
+            </div>
+            
+            <div class="segmented-control period-control" style="margin-bottom: 12px; max-width: 320px; margin-left: auto; margin-right: auto;">
+                <button class="segment-btn active" id="periodTab-month" onclick="setDashboardPeriod('month')">📅 Месяц</button>
+                <button class="segment-btn" id="periodTab-h1" onclick="setDashboardPeriod('h1')">1-я половина</button>
+                <button class="segment-btn" id="periodTab-h2" onclick="setDashboardPeriod('h2')">2-я половина</button>
             </div>
             
             <div class="segmented-control" style="margin-bottom: 12px;">
@@ -617,7 +623,7 @@
     </div>
 
     <!-- App Script logic -->
-    <script src="app.js?v=19.0"></script>
+    <script src="app.js?v=20.0"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>
