@@ -976,6 +976,17 @@ function toggleHistoryChecked(id, isChecked) {
     }
 }
 
+function toggleHistoryAdminChecked(id, isChecked) {
+    const h = db.history.find(x => x.id == id);
+    if (h) {
+        h.adminChecked = isChecked;
+        saveData();
+        showToast(isChecked ? '🛡️ Подтверждено администратором' : 'ℹ️ Подтверждение админа снято');
+        triggerHapticFeedback();
+    }
+}
+window.toggleHistoryAdminChecked = toggleHistoryAdminChecked;
+
 // =========================================================================
 // DATA POPULATION HELPERS
 // =========================================================================
@@ -1752,6 +1763,9 @@ function renderHistory() {
         const items = dayGroups[dayStr];
         let itemsHtml = '';
         
+        const userRole = localStorage.getItem('fsm_user_role');
+        const isAdmin = userRole === 'Администратор';
+        
         items.forEach(h => {
             const dateObj = new Date(h.date);
             const m = db.machines.find(x => x.id == h.machineId);
@@ -1772,11 +1786,32 @@ function renderHistory() {
                 `;
             }
             
+            // Background color indicator based on role and confirmation status
+            let itemClass = '';
+            if (isAdmin && h.adminChecked) {
+                itemClass = 'admin-verified-item';
+            } else if (h.checked) {
+                itemClass = 'verified-item';
+            }
+            
+            // Checkbox rendering logic
+            let checkboxesHtml = '';
+            if (isAdmin) {
+                checkboxesHtml = `
+                    <input type="checkbox" class="history-check-input tooltip" title="Подтверждение мастера" ${h.checked ? 'checked' : ''} onchange="toggleHistoryChecked(${h.id}, this.checked)" onclick="event.stopPropagation();">
+                    <input type="checkbox" class="history-check-input admin-check-input tooltip" title="Подтверждение администратора" ${h.adminChecked ? 'checked' : ''} onchange="toggleHistoryAdminChecked(${h.id}, this.checked)" onclick="event.stopPropagation();" style="margin-left: 6px;">
+                `;
+            } else {
+                checkboxesHtml = `
+                    <input type="checkbox" class="history-check-input tooltip" title="Подтверждено" ${h.checked ? 'checked' : ''} onchange="toggleHistoryChecked(${h.id}, this.checked)" onclick="event.stopPropagation();">
+                `;
+            }
+            
             itemsHtml += `
-                <div class="timeline-item ${h.checked ? 'verified-item' : ''}">
+                <div class="timeline-item ${itemClass}">
                     <div class="timeline-header" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <input type="checkbox" class="history-check-input" ${h.checked ? 'checked' : ''} onchange="toggleHistoryChecked(${h.id}, this.checked)" onclick="event.stopPropagation();" ${localStorage.getItem('fsm_user_role') === 'Администратор' ? '' : 'disabled'}>
+                            ${checkboxesHtml}
                             <div class="timeline-title">${model}</div>
                         </div>
                         <div class="timeline-time">${timeStr}</div>
@@ -1804,8 +1839,7 @@ function renderHistory() {
         });
         
         // Show double-check icon for mass verification of unverified items in this day
-        const hasUnchecked = items.some(item => !item.checked);
-        const isAdmin = localStorage.getItem('fsm_user_role') === 'Администратор';
+        const hasUnchecked = items.some(item => !item.checked || (isAdmin && !item.adminChecked));
         const verifyAllBtn = (hasUnchecked && isAdmin) ? `
             <button class="btn-outline square-btn tooltip" onclick="event.stopPropagation(); verifyAllForDay('${dayStr.replace(/'/g, "\\'")}')" title="Подтвердить все за этот день" style="padding: 2px 6px; font-size: 11px; margin: 0 4px; min-height: 22px; height: 22px; line-height: 1; border-radius: 4px; color: var(--success-color); border-color: var(--success-color);">✓✓</button>
         ` : '';
@@ -2213,10 +2247,16 @@ function verifyAllForDay(dayStr) {
         return curDayStr === dayStr;
     });
     
-    const unchecked = records.filter(r => !r.checked);
+    const isAdmin = localStorage.getItem('fsm_user_role') === 'Администратор';
+    const unchecked = records.filter(r => !r.checked || (isAdmin && !r.adminChecked));
     if (unchecked.length > 0) {
         doubleConfirm(`ПОДТВЕРДИТЬ все выполненные ТО за ${dayStr}`, () => {
-            unchecked.forEach(r => r.checked = true);
+            unchecked.forEach(r => {
+                r.checked = true;
+                if (isAdmin) {
+                    r.adminChecked = true;
+                }
+            });
             saveData();
             triggerHapticFeedback();
             showToast('✅ Все ТО за день подтверждены!');

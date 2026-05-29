@@ -1873,3 +1873,24 @@ body.role-worker #tab-settings .search-row {
     max-width: 320px;
     margin: 0 auto 12px auto;
 }
+
+/* Admin verified checkbox color */
+.history-check-input.admin-check-input:checked {
+    background-color: var(--primary-color, #0056b3) !important;
+    border-color: var(--primary-color, #0056b3) !important;
+}
+.history-check-input.admin-check-input:hover {
+    border-color: var(--primary-color, #0056b3) !important;
+}
+
+/* Admin verified timeline item background (only visible when logged in as admin) */
+.timeline-item.admin-verified-item {
+    background-color: #e3f2fd !important;
+    border-color: #bbdefb !important;
+}
+
+body.dark .timeline-item.admin-verified-item {
+    background-color: #0d233a !important;
+    border-color: #153b62 !important;
+}
+
