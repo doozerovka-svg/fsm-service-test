@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=18.0">
+    <link rel="stylesheet" href="styles.css?v=19.0">
 </head>
 <body>
 
@@ -67,27 +67,21 @@
                 <p class="subtitle">Приоритетные задачи и прогресс обслуживания оборудования.</p>
             </div>
             
-            <details class="card glass-card" id="routeProgressAccordion" style="margin-bottom: 12px; padding: 0 15px;">
-                <summary style="font-weight: 600; cursor: pointer; color: var(--primary-color); padding: 12px 0; outline: none; list-style: none; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="display:flex; align-items:center; gap:8px;">📊 Прогресс по маршрутам</span>
-                    <span class="details-indicator">▼</span>
-                </summary>
-                <div id="routeProgressList" style="padding-bottom: 12px; border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;">
+            <div class="card glass-card" id="routeProgressCard" style="margin-bottom: 12px; padding: 15px;">
+                <h3 style="margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--primary-color);">📊 Прогресс по маршрутам</h3>
+                <div id="routeProgressList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;">
                     <!-- Динамические мини-прогрессбары -->
                 </div>
-            </details>
+            </div>
             
             <div class="segmented-control" style="margin-bottom: 12px;">
                 <button class="segment-btn active" id="dashTab-overdue" onclick="setDashboardTab('overdue')">🔴 Просрочено (<span id="countOverdue">0</span>)</button>
                 <button class="segment-btn" id="dashTab-pending" onclick="setDashboardTab('pending')">🔵 В планах (<span id="countPending">0</span>)</button>
                 <button class="segment-btn" id="dashTab-completed" onclick="setDashboardTab('completed')">🟢 Выполнено (<span id="countCompleted">0</span>)</button>
             </div>
-
+            
             <div class="form-group" style="margin-bottom: 12px;">
-                <div class="flex-row" style="gap: 8px; align-items: center;">
-                    <input type="text" id="dashboardSearch" placeholder="🔍 Поиск по чек-листу (модель, S/N, банк, адрес)..." oninput="renderDashboard()" style="margin-bottom: 0; padding: 10px; font-size: 15px; flex: 1;">
-                    <button class="btn-primary tooltip" onclick="startScanner('dashboardSearch', () => renderDashboard())" title="Сканировать штрихкод" style="padding: 10px 14px; font-size: 16px; margin: 0; min-height: 46px; min-width: 46px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm);">📸</button>
-                </div>
+                <input type="text" id="dashboardSearch" placeholder="🔍 Поиск по чек-листу (модель, S/N, банк, адрес)..." oninput="renderDashboard()" style="margin-bottom: 0; padding: 10px; font-size: 15px; width: 100%; box-sizing: border-box;">
             </div>
             <div id="dashboardList" class="cards-list"></div>
         </section>
@@ -138,10 +132,7 @@
             </div>
             
             <div class="form-group" style="margin-bottom: 12px;">
-                <div class="flex-row" style="gap: 8px; align-items: center;">
-                    <input type="text" id="addressTabSearch" placeholder="🔍 Поиск по адресам и машинам (модель, S/N, адрес)..." oninput="filterAddressTab(this)" style="margin-bottom: 0; padding: 10px; font-size: 15px; flex: 1;">
-                    <button class="btn-primary tooltip" onclick="startScanner('addressTabSearch', () => filterAddressTab(document.getElementById('addressTabSearch')))" title="Сканировать штрихкод" style="padding: 10px 14px; font-size: 16px; margin: 0; min-height: 46px; min-width: 46px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm);">📸</button>
-                </div>
+                <input type="text" id="addressTabSearch" placeholder="🔍 Поиск по адресам и машинам (модель, S/N, адрес)..." oninput="filterAddressTab(this)" style="margin-bottom: 0; padding: 10px; font-size: 15px; width: 100%; box-sizing: border-box;">
             </div>
             
             <div id="addressList" class="details-list"></div>
@@ -262,21 +253,6 @@
 
     <!-- ================= МОДАЛЬНЫЕ ОКНА ================= -->
 
-    <!-- Модальное окно: Сканер штрихкодов и QR-кодов -->
-    <div id="scannerModal" class="modal" style="z-index: 1100;">
-        <div class="modal-backdrop" onclick="stopScanner()"></div>
-        <div class="modal-content" style="max-width: 450px; padding: 20px;">
-            <span class="close-btn" onclick="stopScanner()">&times;</span>
-            <h3 style="margin-top: 0; margin-bottom: 10px;">Сканирование штрихкода / S/N</h3>
-            <div id="reader" style="width: 100%; border-radius: var(--radius-md); overflow: hidden; background: #000; position: relative;"></div>
-            <div class="form-group" style="margin-top: 15px; margin-bottom: 15px;">
-                <label for="scannerCameraSelect">Выберите камеру</label>
-                <select id="scannerCameraSelect" class="custom-input" style="width: 100%; box-sizing: border-box;" onchange="switchCamera(this.value)"></select>
-            </div>
-            <button class="btn-danger btn-full" onclick="stopScanner()">Отмена</button>
-        </div>
-    </div>
-
     <!-- Модальное окно: Подтверждение -->
     <div id="confirmModal" class="modal">
         <div class="modal-backdrop" onclick="closeConfirm()"></div>
@@ -322,10 +298,7 @@
             <div class="flex-row" style="gap: 8px;">
                 <div class="form-group" style="flex: 1; margin-bottom: 15px;">
                     <label for="addMachSerial">Серийный № (S/N)</label>
-                    <div class="flex-row" style="gap: 4px; align-items: center;">
-                        <input type="text" id="addMachSerial" placeholder="S/N" style="margin: 0; flex: 1;">
-                        <button class="btn-primary" onclick="startScanner('addMachSerial')" style="padding: 8px 12px; font-size: 14px; margin: 0; min-height: 42px; border-radius: var(--radius-sm);">📸</button>
-                    </div>
+                    <input type="text" id="addMachSerial" placeholder="S/N" style="margin: 0; width: 100%;">
                 </div>
                 <div class="form-group" style="flex: 1; margin-bottom: 15px;">
                     <label for="addMachInv">Инвентарный №</label>
@@ -376,10 +349,7 @@
             <div class="flex-row" style="gap: 8px;">
                 <div class="form-group" style="flex: 1; margin-bottom: 15px;">
                     <label for="detMachSerial">Серийный № (S/N)</label>
-                    <div class="flex-row" style="gap: 4px; align-items: center;">
-                        <input type="text" id="detMachSerial" style="margin: 0; flex: 1;">
-                        <button class="btn-primary" onclick="startScanner('detMachSerial')" style="padding: 8px 12px; font-size: 14px; margin: 0; min-height: 42px; border-radius: var(--radius-sm);">📸</button>
-                    </div>
+                    <input type="text" id="detMachSerial" style="margin: 0; width: 100%;">
                 </div>
                 <div class="form-group" style="flex: 1; margin-bottom: 15px;">
                     <label for="detMachInv">Инвентарный №</label>
@@ -474,10 +444,7 @@
 
             <div class="form-group" id="modalReplacementContainer" style="display: none;">
                 <label for="modalReplacementSerial">Новый серийный № (S/N)</label>
-                <div class="flex-row" style="gap: 4px; align-items: center;">
-                    <input type="text" id="modalReplacementSerial" placeholder="Новый S/N" style="margin: 0; flex: 1;">
-                    <button class="btn-primary" onclick="startScanner('modalReplacementSerial')" style="padding: 8px 12px; font-size: 14px; margin: 0; min-height: 42px; border-radius: var(--radius-sm);">📸</button>
-                </div>
+                <input type="text" id="modalReplacementSerial" placeholder="Новый S/N" class="custom-input" style="width: 100%; box-sizing: border-box;">
             </div>
 
             <div class="form-group">
@@ -587,10 +554,7 @@
 
             <div class="form-group" id="editHistReplacementContainer" style="display: none;">
                 <label for="editHistReplacementSerial">Новый серийный № (S/N)</label>
-                <div class="flex-row" style="gap: 4px; align-items: center;">
-                    <input type="text" id="editHistReplacementSerial" placeholder="Новый S/N" style="margin: 0; flex: 1;">
-                    <button class="btn-primary" onclick="startScanner('editHistReplacementSerial')" style="padding: 8px 12px; font-size: 14px; margin: 0; min-height: 42px; border-radius: var(--radius-sm);">📸</button>
-                </div>
+                <input type="text" id="editHistReplacementSerial" placeholder="Новый S/N" class="custom-input" style="width: 100%; box-sizing: border-box;">
             </div>
 
             <div class="form-group">
@@ -653,8 +617,7 @@
     </div>
 
     <!-- App Script logic -->
-    <script src="html5-qrcode.min.js"></script>
-    <script src="app.js?v=18.0"></script>
+    <script src="app.js?v=19.0"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>
