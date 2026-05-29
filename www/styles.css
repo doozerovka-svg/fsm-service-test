@@ -517,7 +517,6 @@ details {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     margin-bottom: 12px;
-    overflow: hidden;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
@@ -532,6 +531,13 @@ summary {
     outline: none;
     font-size: 16px;
     list-style: none;
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+}
+
+details:not([open]) > summary {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
 }
 
 summary::-webkit-details-marker {
@@ -1899,4 +1905,15 @@ body.dark .timeline-item.admin-verified-item {
     background-color: #0d233a !important;
     border-color: #153b62 !important;
 }
+
+/* Stacking context fixes to overlay open dropdowns above sibling cards and sections */
+.custom-select-wrapper.open {
+    z-index: 1060 !important;
+}
+
+.card:has(.custom-select-wrapper.open),
+details:has(.custom-select-wrapper.open) {
+    z-index: 1060 !important;
+}
+
 
