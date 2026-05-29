@@ -995,14 +995,31 @@ function populateDropdown(inputId, itemsArray, selectedValue = null) {
     const hiddenInput = document.getElementById(inputId);
     if (!wrapper || !hiddenInput) return;
 
+    // Sort itemsArray alphabetically, keeping "✍️ Ввести имя вручную..." at the end
+    let sortedItems = [...itemsArray];
+    const manualIndex = sortedItems.findIndex(item => typeof item === 'string' && item.includes('Ввести имя вручную'));
+    let manualItem = null;
+    if (manualIndex !== -1) {
+        manualItem = sortedItems.splice(manualIndex, 1)[0];
+    }
+    sortedItems.sort((a, b) => {
+        if (typeof a === 'string' && typeof b === 'string') {
+            return a.localeCompare(b, 'ru');
+        }
+        return 0;
+    });
+    if (manualItem) {
+        sortedItems.push(manualItem);
+    }
+
     // Use currently selected value from DOM if selectedValue is not specified (is null)
     const currentValue = (selectedValue !== null) ? selectedValue : hiddenInput.value;
     let displayValue = 'Выберите...';
     
-    if (currentValue && itemsArray.includes(currentValue)) {
+    if (currentValue && sortedItems.includes(currentValue)) {
         displayValue = currentValue;
-    } else if (itemsArray.length > 0) {
-        displayValue = itemsArray[0];
+    } else if (sortedItems.length > 0) {
+        displayValue = sortedItems[0];
     }
 
     const resolvedValue = displayValue === 'Выберите...' ? '' : displayValue;
@@ -1014,7 +1031,7 @@ function populateDropdown(inputId, itemsArray, selectedValue = null) {
             <span class="custom-select-arrow">▼</span>
         </div>
         <div class="custom-select-options" id="options-${inputId}">
-            ${itemsArray.map(item => `
+            ${sortedItems.map(item => `
                 <div class="custom-select-option ${item === resolvedValue ? 'selected' : ''}" 
                      onclick="selectCustomOption('${inputId}', '${item.replace(/'/g, "\\'")}')">
                     ${item}
@@ -1029,18 +1046,24 @@ function populateAddressDropdown(inputId, selectedId = 0) {
     const hiddenInput = document.getElementById(inputId);
     if (!wrapper || !hiddenInput) return;
 
+    const sortedAddresses = [...db.addresses].sort((a, b) => {
+        const strA = `${a.bank} - ${a.address}`;
+        const strB = `${b.bank} - ${b.address}`;
+        return strA.localeCompare(strB, 'ru');
+    });
+
     // If selectedId is 0 or not passed, look at current hidden input value
     const currentId = parseInt(selectedId) || parseInt(hiddenInput.value) || 0;
-    let selectedAddr = db.addresses.find(a => a.id == currentId);
+    let selectedAddr = sortedAddresses.find(a => a.id == currentId);
     let displayValue = 'Выберите адрес...';
     let resolvedValue = '';
     
     if (selectedAddr) {
         resolvedValue = selectedAddr.id;
         displayValue = `${selectedAddr.bank} - ${selectedAddr.address}`;
-    } else if (db.addresses.length > 0) {
-        resolvedValue = db.addresses[0].id;
-        displayValue = `${db.addresses[0].bank} - ${db.addresses[0].address}`;
+    } else if (sortedAddresses.length > 0) {
+        resolvedValue = sortedAddresses[0].id;
+        displayValue = `${sortedAddresses[0].bank} - ${sortedAddresses[0].address}`;
     }
 
     wrapper.innerHTML = `
@@ -1050,7 +1073,7 @@ function populateAddressDropdown(inputId, selectedId = 0) {
             <span class="custom-select-arrow">▼</span>
         </div>
         <div class="custom-select-options" id="options-${inputId}">
-            ${db.addresses.map(a => `
+            ${sortedAddresses.map(a => `
                 <div class="custom-select-option ${a.id == resolvedValue ? 'selected' : ''}" 
                      onclick="selectCustomOption('${inputId}', '${a.id}', '${a.bank.replace(/'/g, "\\'")} - ${a.address.replace(/'/g, "\\'")}')">
                     ${a.bank} - ${a.address}
@@ -1176,7 +1199,7 @@ function renderDictContainer(containerId, type) {
     const container = document.getElementById(containerId);
     if (!container) return;
     
-    const list = db[type] || [];
+    const list = [...(db[type] || [])].sort((a, b) => a.localeCompare(b, 'ru'));
     if (list.length === 0) {
         container.innerHTML = '<span style="font-size:13px; color:var(--text-muted)">Справочник пуст</span>';
         return;

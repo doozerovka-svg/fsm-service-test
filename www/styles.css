@@ -1015,7 +1015,7 @@ details[open] > summary .details-indicator {
     position: relative;
     background: #ffffff;
     border-radius: var(--radius-lg);
-    padding: 20px;
+    padding: 20px 20px 80px 20px;
     width: 100%;
     max-width: 400px;
     max-height: 85vh;
@@ -1024,6 +1024,10 @@ details[open] > summary .details-indicator {
     z-index: 1001;
     animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     margin-top: max(5%, env(safe-area-inset-top));
+}
+
+.modal-content.modal-alert {
+    padding-bottom: 20px !important;
 }
 
 .modal-alert {
@@ -1272,8 +1276,10 @@ details[open] > summary .details-indicator {
     border: 1px solid var(--primary-color);
     border-radius: var(--radius-md);
     margin-top: 4px;
-    max-height: 200px;
+    max-height: 180px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     z-index: 1050;
     box-shadow: 0 8px 24px rgba(0,0,0,0.15);
     animation: fadeIn 0.15s ease;
