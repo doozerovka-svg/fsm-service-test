@@ -1203,7 +1203,6 @@ let dashboardSelectedRoute = null;
 function setDashboardTab(tab) {
     dashboardActiveTab = tab;
     localStorage.setItem('fsm_dash_active_tab', tab);
-    dashboardSelectedRoute = null; // Reset route filter on tab switch to prevent empty view confusion
     renderDashboard();
 }
 window.setDashboardTab = setDashboardTab;
@@ -1546,6 +1545,11 @@ function renderAddresses() {
     const container = document.getElementById('addressList');
     if (!container) return;
     
+    // Capture open states before re-rendering
+    const openCities = Array.from(container.querySelectorAll('.addr-city-collapsible[open]')).map(el => el.getAttribute('data-city') || '');
+    const openBanks = Array.from(container.querySelectorAll('.addr-bank-collapsible[open]')).map(el => el.getAttribute('data-bank-id') || '');
+    const openAddresses = Array.from(container.querySelectorAll('.address-card-details[open]')).map(el => el.getAttribute('data-address-id') || '');
+    
     if (db.addresses.length === 0) {
         container.innerHTML = '<p style="text-align:center; padding: 20px 0; color:var(--text-muted)">Список адресов пуст.</p>';
         return;
@@ -1596,9 +1600,10 @@ function renderAddresses() {
                     `).join('');
                 }
 
+                const isAddrOpen = openAddresses.includes(String(a.id)) ? 'open' : '';
                 addressesHtml += `
                     <div class="card address-card" data-address-text="${a.bank.toLowerCase()} ${a.address.toLowerCase()} ${a.route.toLowerCase()} ${(a.city || '').toLowerCase()}" style="margin-bottom: 8px;">
-                        <details class="address-card-details">
+                        <details class="address-card-details" data-address-id="${a.id}" ${isAddrOpen}>
                             <summary class="address-card-summary">
                                 <div class="address-card-header-wrapper" style="flex: 1; display: flex; justify-content: space-between; align-items: flex-start;">
                                     <div>
@@ -1632,8 +1637,10 @@ function renderAddresses() {
                 `;
             });
 
+            const bankId = `${city}_${bank}`;
+            const isBankOpen = openBanks.includes(bankId) ? 'open' : '';
             banksHtml += `
-                <details class="addr-bank-collapsible">
+                <details class="addr-bank-collapsible" data-bank-id="${bankId.replace(/"/g, '&quot;')}" ${isBankOpen}>
                     <summary>
                         <span>🏦 ${bank}</span>
                         <div style="display:flex; align-items:center; gap:8px;">
@@ -1648,8 +1655,9 @@ function renderAddresses() {
             `;
         });
 
+        const isCityOpen = openCities.includes(city) ? 'open' : '';
         html += `
-            <details class="addr-city-collapsible">
+            <details class="addr-city-collapsible" data-city="${city.replace(/"/g, '&quot;')}" ${isCityOpen}>
                 <summary>
                     <span>🏙️ ${city}</span>
                     <div style="display:flex; align-items:center; gap:8px;">
