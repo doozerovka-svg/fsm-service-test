@@ -1474,9 +1474,12 @@ function renderDashboard() {
         
         const machItem = { mach, a, completedH1, targetH1, completedH2, targetH2 };
         
-        if (isOverdue) overdueList.push(machItem);
-        else if (isCompleted) completedList.push(machItem);
-        else pendingList.push(machItem);
+        // Push to status lists only if matching the selected route filter (or if filter is empty)
+        if (!dashboardSelectedRoute || routeName === dashboardSelectedRoute) {
+            if (isOverdue) overdueList.push(machItem);
+            else if (isCompleted) completedList.push(machItem);
+            else pendingList.push(machItem);
+        }
     });
     
     // Render Route Progress Bars
@@ -1486,7 +1489,40 @@ function renderDashboard() {
         if (activeRoutes.length === 0) {
             routeProgressListEl.innerHTML = '<p style="font-size:12px; color:var(--text-muted); padding: 4px 0; margin: 0; grid-column: 1 / -1; text-align: center;">Нет данных по маршрутам</p>';
         } else {
-            routeProgressListEl.innerHTML = activeRoutes.map(routeName => {
+            // Calculate overall stats for "Все" card
+            let overallTotal = 0;
+            let overallCompleted = 0;
+            activeRoutes.forEach(r => {
+                overallTotal += routeStats[r].total;
+                overallCompleted += routeStats[r].completed;
+            });
+            const overallPercent = overallTotal > 0 ? Math.round((overallCompleted / overallTotal) * 100) : 0;
+            
+            let overallFillBarColor = 'var(--primary-color)';
+            if (overallPercent === 100) {
+                overallFillBarColor = 'linear-gradient(90deg, #10b981, #059669)';
+            } else if (overallPercent > 0) {
+                overallFillBarColor = 'linear-gradient(90deg, #3b82f6, #2563eb)';
+            } else {
+                overallFillBarColor = '#d1d5db';
+            }
+            
+            const isAllActive = dashboardSelectedRoute === null;
+            const allCardHtml = `
+                <div class="route-progress-card ${isAllActive ? 'active-filter' : ''}" 
+                     onclick="toggleRouteFilter(null)"
+                     style="background: rgba(0, 86, 179, 0.03); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: center; min-height: 48px; cursor: pointer; transition: var(--transition-quick);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 6px; font-size:11px; font-weight:600; gap: 4px;">
+                        <span style="color:var(--text-primary); font-weight: bold;">⭐ Все маршруты</span>
+                        <span style="color:${overallPercent === 100 ? 'var(--success-color)' : 'var(--primary-color)'}; white-space: nowrap;">${overallPercent}% (${overallCompleted}/${overallTotal})</span>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.06); height: 5px; border-radius: 3px; overflow: hidden; position: relative;">
+                        <div style="background: ${overallFillBarColor}; width: ${overallPercent}%; height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 3px;"></div>
+                    </div>
+                </div>
+            `;
+            
+            const routesCardsHtml = activeRoutes.map(routeName => {
                 const stats = routeStats[routeName];
                 const percent = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
                 
@@ -1514,6 +1550,8 @@ function renderDashboard() {
                     </div>
                 `;
             }).join('');
+            
+            routeProgressListEl.innerHTML = allCardHtml + routesCardsHtml;
         }
     }
     
