@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fsm-cache-v17.0';
+const CACHE_NAME = 'fsm-cache-v18.0';
 const ASSETS = [
     './index.html',
     './styles.css',

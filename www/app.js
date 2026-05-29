@@ -1317,6 +1317,14 @@ function renderDashboard() {
     
     const isAfter15 = now.getDate() > 15;
     
+    // Group progress stats by route
+    const routeStats = {
+        'Без маршрута': { total: 0, completed: 0 }
+    };
+    db.routes.forEach(r => {
+        routeStats[r] = { total: 0, completed: 0 };
+    });
+    
     db.machines.forEach(mach => {
         const a = db.addresses.find(addr => addr.id == mach.addressId);
         
@@ -1369,12 +1377,57 @@ function renderDashboard() {
             isPending = (completedH1 + completedH2) === 0;
         }
         
+        // Track stats for progress bars
+        const routeName = a ? a.route || 'Без маршрута' : 'Без маршрута';
+        if (!routeStats[routeName]) {
+            routeStats[routeName] = { total: 0, completed: 0 };
+        }
+        routeStats[routeName].total++;
+        if (isCompleted) {
+            routeStats[routeName].completed++;
+        }
+        
         const machItem = { mach, a, completedH1, targetH1, completedH2, targetH2 };
         
         if (isOverdue) overdueList.push(machItem);
         else if (isCompleted) completedList.push(machItem);
         else pendingList.push(machItem);
     });
+    
+    // Render Route Progress Bars
+    const routeProgressListEl = document.getElementById('routeProgressList');
+    if (routeProgressListEl) {
+        const activeRoutes = Object.keys(routeStats).filter(r => routeStats[r].total > 0).sort();
+        if (activeRoutes.length === 0) {
+            routeProgressListEl.innerHTML = '<p style="font-size:12px; color:var(--text-muted); padding: 4px 0; margin: 0; grid-column: 1 / -1; text-align: center;">Нет данных по маршрутам</p>';
+        } else {
+            routeProgressListEl.innerHTML = activeRoutes.map(routeName => {
+                const stats = routeStats[routeName];
+                const percent = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+                
+                let fillBarColor = 'var(--primary-color)';
+                if (percent === 100) {
+                    fillBarColor = 'linear-gradient(90deg, #10b981, #059669)';
+                } else if (percent > 0) {
+                    fillBarColor = 'linear-gradient(90deg, #3b82f6, #2563eb)';
+                } else {
+                    fillBarColor = '#d1d5db';
+                }
+                
+                return `
+                    <div class="route-progress-card" style="background: rgba(0, 86, 179, 0.03); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: center; min-height: 48px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom: 6px; font-size:11px; font-weight:600; gap: 4px;">
+                            <span style="color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex: 1;" title="${routeName}">${routeName}</span>
+                            <span style="color:${percent === 100 ? 'var(--success-color)' : 'var(--primary-color)'}; white-space: nowrap;">${percent}% (${stats.completed}/${stats.total})</span>
+                        </div>
+                        <div style="background: rgba(0,0,0,0.06); height: 5px; border-radius: 3px; overflow: hidden; position: relative;">
+                            <div style="background: ${fillBarColor}; width: ${percent}%; height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 3px;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
     
     // Update count labels on tabs
     const countOverdueEl = document.getElementById('countOverdue');
