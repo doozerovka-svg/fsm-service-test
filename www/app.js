@@ -770,8 +770,9 @@ function openServiceModal(machineId) {
     document.getElementById('modalReplacementContainer').style.display = 'none';
     document.getElementById('modalReplacementSerial').value = '';
     
-    // Populate performer dropdown and preselect machine's responsible employee
-    populateDropdown('modalEmployee', db.employees, m.employee || '');
+    // Populate performer dropdown and preselect current logged-in employee or machine's responsible employee
+    const currentEmp = localStorage.getItem('fsm_user_employee_name') || m.employee || '';
+    populateDropdown('modalEmployee', db.employees, currentEmp);
     
     // Load past repairs history inside service modal
     renderMachineHistory(m.id, 'prevServiceHistoryList');
@@ -1078,6 +1079,7 @@ function selectCustomOption(inputId, value, label = null) {
     if (hiddenInput && triggerText) {
         hiddenInput.value = value;
         triggerText.innerText = label || value;
+        hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
         
         if (optionsDiv) {
             optionsDiv.querySelectorAll('.custom-select-option').forEach(opt => {
@@ -1182,6 +1184,104 @@ function renderDictContainer(containerId, type) {
 
 // Render Dashboard Check-list
 // Render Dashboard Check-list
+// Render Dashboard Check-list
+let dashboardActiveTab = localStorage.getItem('fsm_dash_active_tab') || 'pending';
+
+function setDashboardTab(tab) {
+    dashboardActiveTab = tab;
+    localStorage.setItem('fsm_dash_active_tab', tab);
+    renderDashboard();
+}
+window.setDashboardTab = setDashboardTab;
+
+function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH2) {
+    const F = mach.freq;
+    
+    // Status dots logic
+    let dotsHtml = '<div class="status-dots">';
+    if (F > 0) {
+        let dotClass = 'blue';
+        let tooltip = 'I половина: Ожидает';
+        const now = new Date();
+        if (completedH1 >= targetH1) {
+            dotClass = 'green';
+            tooltip = 'I половина: Выполнено';
+        } else if (completedH1 > 0) {
+            dotClass = 'blue';
+            tooltip = `I половина: Выполнено ${completedH1}/${targetH1}`;
+        } else if (now.getDate() > 15) {
+            dotClass = 'red';
+            tooltip = 'I половина: Просрочено';
+        }
+        dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
+    } else {
+        dotsHtml += `<span class="status-dot grey" data-tooltip="I половина: ТО не требуется"></span>`;
+    }
+    
+    if (F > 0) {
+        let dotClass = 'blue';
+        let tooltip = 'II половина: Ожидает';
+        if (completedH2 >= targetH2) {
+            dotClass = 'green';
+            tooltip = 'II половина: Выполнено';
+        } else if (completedH2 > 0) {
+            dotClass = 'blue';
+            tooltip = `II половина: Выполнено ${completedH2}/${targetH2}`;
+        }
+        dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
+    } else {
+        dotsHtml += `<span class="status-dot grey" data-tooltip="II половина: ТО не требуется"></span>`;
+    }
+    
+    if (F === 0) {
+        const totalCount = completedH1 + completedH2;
+        const dotClass = totalCount > 0 ? 'green' : 'grey';
+        const tooltip = totalCount > 0 ? `По запросу (Выполнено: ${totalCount})` : 'По запросу (Ожидает)';
+        dotsHtml = `<div class="status-dots"><span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
+    }
+    dotsHtml += '</div>';
+
+    // Address text
+    const addrText = a ? `${a.bank}, ${a.address}` : 'Адрес удален';
+    const cityText = a ? a.city || 'Кишинев' : 'Неизвестно';
+    const routeText = a ? a.route || 'Без маршрута' : 'Без маршрута';
+    
+    // Progress description
+    let progressDesc = '';
+    if (F > 0) {
+        progressDesc = `План: I (${completedH1}/${targetH1}) · II (${completedH2}/${targetH2})`;
+    } else {
+        progressDesc = `По запросу (Выполнено: ${completedH1 + completedH2})`;
+    }
+
+    return `
+        <div class="card glass-card machine-check-card" style="margin-bottom: 12px; padding: 15px; position:relative; border-left: 5px solid var(--primary-color);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 8px;">
+                <div style="flex:1;">
+                    <div style="font-size: 15px; font-weight:bold; color:var(--text-primary); margin-bottom: 4px;">📠 ${mach.model}</div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 6px;">S/N: <strong>${mach.serial}</strong>${mach.inv ? ` | Inv: <strong>${mach.inv}</strong>` : ''}</div>
+                    <div style="font-size:13px; color:var(--text-secondary); margin-bottom: 2px; display:flex; align-items:center; gap:4px;">📍 ${addrText}</div>
+                    <div style="font-size:11px; color:var(--text-muted); display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;">
+                        <span>🏙️ ${cityText}</span>
+                        <span>🚗 ${routeText}</span>
+                        ${mach.employee ? `<span>👤 Отв: ${mach.employee}</span>` : ''}
+                    </div>
+                </div>
+                <div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+                    ${dotsHtml}
+                    <span class="badge info" style="font-size:10px; padding: 2px 6px; border-radius:10px;">${progressDesc}</span>
+                </div>
+            </div>
+            
+            <div style="display:flex; gap:8px; margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                <button class="btn-success" onclick="openServiceModal(${mach.id})" style="flex:2; font-size:12px; padding:6px 10px; min-height: 34px; font-weight: 600; margin: 0;">🛠️ Обслужить / Замена</button>
+                <button class="btn-danger tooltip" onclick="openProblemModal(${mach.id})" title="Зафиксировать поломку" style="flex:1; font-size:12px; padding:6px 10px; min-height: 34px; max-width: 44px; margin: 0; display:flex; align-items:center; justify-content:center;">⚠️</button>
+                <button class="btn-outline tooltip" onclick="openMapInKodular('${(a ? a.address : '').replace(/'/g, "\\'")}')" title="Проложить маршрут" style="flex:1; font-size:12px; padding:6px 10px; min-height: 34px; max-width: 44px; margin: 0; display:flex; align-items:center; justify-content:center;">🗺️</button>
+            </div>
+        </div>
+    `;
+}
+
 function renderDashboard() {
     const container = document.getElementById('dashboardList');
     if (!container) return;
@@ -1191,345 +1291,125 @@ function renderDashboard() {
     const now = new Date();
     document.getElementById('currentMonthTitle').innerText = `Чек-лист: ${months[now.getMonth()]} ${now.getFullYear()}`;
     
-    if (db.addresses.length === 0) {
+    // Maintain active segment button class
+    document.querySelectorAll('#tab-dashboard .segment-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const activeBtn = document.getElementById('dashTab-' + dashboardActiveTab);
+    if (activeBtn) activeBtn.classList.add('active');
+    
+    if (db.machines.length === 0) {
         container.innerHTML = `
             <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
-                <p style="font-size: 15px; margin-bottom: 12px;">База адресов пока пуста.</p>
-                <p style="font-size: 13px; color: var(--text-muted)">Перейдите во вкладку <strong>📍 Адреса</strong>, чтобы добавить вашу первую локацию.</p>
+                <p style="font-size: 15px; margin-bottom: 12px;">Оборудование в базе отсутствует.</p>
+                <p style="font-size: 13px; color: var(--text-muted)">Перейдите во вкладку <strong>📍 Адреса</strong>, чтобы добавить машины.</p>
             </div>
         `;
         return;
     }
     
-    // Save open state before re-rendering
-    const openRoutes = Array.from(document.querySelectorAll('#dashboardList .dash-route[open]')).map(el => el.getAttribute('data-route-id') || '');
-    const openCities = Array.from(document.querySelectorAll('#dashboardList .dash-city[open]')).map(el => el.getAttribute('data-city-id') || '');
-    const openAddresses = Array.from(document.querySelectorAll('#dashboardList .dash-address[open]')).map(el => el.getAttribute('data-address-id') || '');
-    const isFirstLoad = document.querySelectorAll('#dashboardList .dash-route').length === 0;
-    
     const searchInput = document.getElementById('dashboardSearch');
     const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
     
-    let html = '';
-    const onlyPendingToggle = document.getElementById('onlyPendingToggle');
-    const isOnlyPending = onlyPendingToggle && onlyPendingToggle.checked;
+    const overdueList = [];
+    const pendingList = [];
+    const completedList = [];
     
-    // Group addresses by routes
-    db.routes.forEach((route, routeIndex) => {
-        const routeAddresses = db.addresses.filter(a => a.route === route);
-        if (routeAddresses.length === 0) return;
+    const isAfter15 = now.getDate() > 15;
+    
+    db.machines.forEach(mach => {
+        const a = db.addresses.find(addr => addr.id == mach.addressId);
         
-        let totalTargetH1 = 0;
-        let totalCompletedH1 = 0;
-        let totalTargetH2 = 0;
-        let totalCompletedH2 = 0;
-        let routeHtml = '';
+        const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date));
+        const completedH1 = thisMonthServices.filter(h => new Date(h.date).getDate() <= 15).length;
+        const completedH2 = thisMonthServices.filter(h => new Date(h.date).getDate() > 15).length;
         
-        // Find all unique cities in this route
-        const routeCities = [...new Set(routeAddresses.map(a => a.city || db.cities[0] || 'Кишинев'))].sort();
+        const F = mach.freq;
+        let targetH1 = 0;
+        let targetH2 = 0;
         
-        routeCities.forEach(city => {
-            const cityAddresses = routeAddresses.filter(a => (a.city || db.cities[0] || 'Кишинев') === city);
-            
-            // Filter addresses that actually have machines
-            const activeCityAddresses = cityAddresses.filter(addr => db.machines.some(m => m.addressId == addr.id));
-            if (activeCityAddresses.length === 0) return;
-            
-            let cityTargetH1 = 0;
-            let cityCompletedH1 = 0;
-            let cityTargetH2 = 0;
-            let cityCompletedH2 = 0;
-            let cityAddressesHtml = '';
-            
-            activeCityAddresses.forEach(addr => {
-                let addrMachines = db.machines.filter(m => m.addressId == addr.id);
-                if (addrMachines.length === 0) return;
-                
-                let filteredMachs = [];
-                let addrTargetH1 = 0;
-                let addrCompletedH1 = 0;
-                let addrTargetH2 = 0;
-                let addrCompletedH2 = 0;
-                
-                addrMachines.forEach(mach => {
-                    const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date));
-                    const completedH1 = thisMonthServices.filter(h => new Date(h.date).getDate() <= 15).length;
-                    const completedH2 = thisMonthServices.filter(h => new Date(h.date).getDate() > 15).length;
-                    
-                    const F = mach.freq;
-                    let targetH1 = 0;
-                    let targetH2 = 0;
-                    
-                    if (F > 0) {
-                        const baseTarget = Math.floor(F / 2);
-                        const rem = F % 2;
-                        if (rem === 0) {
-                            targetH1 = baseTarget;
-                            targetH2 = baseTarget;
-                        } else {
-                            const excessH1 = Math.max(0, completedH1 - baseTarget);
-                            const excessH2 = Math.max(0, completedH2 - baseTarget);
-                            if (excessH1 >= 1) {
-                                targetH1 = baseTarget + 1;
-                                targetH2 = baseTarget;
-                            } else if (excessH2 >= 1) {
-                                targetH1 = baseTarget;
-                                targetH2 = baseTarget + 1;
-                            } else {
-                                if (now.getDate() <= 15) {
-                                    targetH1 = baseTarget + 1;
-                                    targetH2 = baseTarget;
-                                } else {
-                                    targetH1 = baseTarget;
-                                    targetH2 = baseTarget + 1;
-                                }
-                            }
-                        }
-                    }
-                    
-                    const compH1 = Math.min(completedH1, targetH1);
-                    const compH2 = Math.min(completedH2, targetH2);
-                    
-                    // Check if machine is pending for current phase
-                    let isPending = true;
-                    if (now.getDate() <= 15) {
-                        if (targetH1 > 0) isPending = completedH1 < targetH1;
-                        else isPending = (completedH1 + completedH2) === 0;
-                    } else {
-                        if (targetH2 > 0) isPending = completedH2 < targetH2;
-                        else isPending = (completedH1 + completedH2) === 0;
-                    }
-                    
-                    if (isOnlyPending && !isPending) {
-                        return; // Skip this machine
-                    }
-                    
-                    addrTargetH1 += targetH1;
-                    addrCompletedH1 += compH1;
-                    addrTargetH2 += targetH2;
-                    addrCompletedH2 += compH2;
-                    
-                    // Generate status dots
-                    let dotsHtml = '<div class="status-dots">';
-                    
-                    if (targetH1 > 0) {
-                        let dotClass = 'blue';
-                        let tooltip = 'I половина: Ожидает';
-                        if (completedH1 >= targetH1) {
-                            dotClass = 'green';
-                            tooltip = 'I половина: Выполнено';
-                        } else if (completedH1 > 0) {
-                            dotClass = 'blue';
-                            tooltip = `I половина: Выполнено ${completedH1}/${targetH1}`;
-                        } else if (now.getDate() > 15) {
-                            dotClass = 'red';
-                            tooltip = 'I половина: Просрочено';
-                        }
-                        dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
-                    } else {
-                        dotsHtml += `<span class="status-dot grey" data-tooltip="I половина: ТО не требуется"></span>`;
-                    }
-                    
-                    if (targetH2 > 0) {
-                        let dotClass = 'blue';
-                        let tooltip = 'II половина: Ожидает';
-                        if (completedH2 >= targetH2) {
-                            dotClass = 'green';
-                            tooltip = 'II половина: Выполнено';
-                        } else if (completedH2 > 0) {
-                            dotClass = 'blue';
-                            tooltip = `II половина: Выполнено ${completedH2}/${targetH2}`;
-                        }
-                        dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
-                    } else {
-                        dotsHtml += `<span class="status-dot grey" data-tooltip="II половина: ТО не требуется"></span>`;
-                    }
-                    
-                    if (targetH1 === 0 && targetH2 === 0) {
-                        const totalCount = completedH1 + completedH2;
-                        const dotClass = totalCount > 0 ? 'green' : 'grey';
-                        const tooltip = totalCount > 0 ? `По запросу (Выполнено: ${totalCount})` : 'По запросу (Ожидает)';
-                        dotsHtml = `<div class="status-dots"><span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
-                    }
-                    
-                    dotsHtml += '</div>';
-                    
-                    filteredMachs.push({
-                        mach,
-                        dotsHtml
-                    });
-                });
-                
-                if (filteredMachs.length === 0) return;
-                
-                let addrHtml = '';
-                filteredMachs.forEach(({ mach, dotsHtml }) => {
-                    addrHtml += `
-                        <div class="list-item clickable" onclick="openServiceModal(${mach.id})" data-machine-text="${mach.model.toLowerCase()} ${mach.serial.toLowerCase()} ${mach.inv ? mach.inv.toLowerCase() : ''}${mach.employee ? ' ' + mach.employee.toLowerCase() : ''}">
-                            <div class="list-item-main">
-                                <span class="list-item-title">${mach.model}</span>
-                                <span class="list-item-subtitle">S/N: ${mach.serial} ${mach.inv ? ' | Inv: ' + mach.inv : ''}${mach.employee ? ' | Отв: ' + mach.employee : ''}</span>
-                            </div>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                ${dotsHtml}
-                                <button class="btn-outline square-btn tooltip" onclick="event.stopPropagation(); openProblemModal(${mach.id})" title="Зафиксировать поломку/ремонт" style="padding: 4px 6px; min-height: 24px; min-width: 24px; font-size: 11px; margin: 0; border-radius: 4px; border-color: var(--danger-color); color: var(--danger-color);">⚠️</button>
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                // Calculate progress text
-                let addrProgressText = '';
-                if (addrTargetH1 > 0 || addrTargetH2 > 0) {
-                    const parts = [];
-                    if (addrTargetH1 > 0) parts.push(`I: ${addrCompletedH1}/${addrTargetH1}`);
-                    if (addrTargetH2 > 0) parts.push(`II: ${addrCompletedH2}/${addrTargetH2}`);
-                    addrProgressText = parts.join(' · ');
-                } else {
-                    const actualComp = db.machines.filter(m => m.addressId == addr.id)
-                                          .reduce((sum, m) => sum + db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date)).length, 0);
-                    addrProgressText = actualComp > 0 ? `Выполнено: ${actualComp}` : 'По запросу';
-                }
-                
-                cityTargetH1 += addrTargetH1;
-                cityCompletedH1 += addrCompletedH1;
-                cityTargetH2 += addrTargetH2;
-                cityCompletedH2 += addrCompletedH2;
-                
-                totalTargetH1 += addrTargetH1;
-                totalCompletedH1 += addrCompletedH1;
-                totalTargetH2 += addrTargetH2;
-                totalCompletedH2 += addrCompletedH2;
-                
-                const addrStatus = calculateAggregateStatus(addrMachines);
-                const addrDots = getStatusDotsHtmlForAggregated(addrStatus);
-                const isAddrOpen = openAddresses.includes(String(addr.id)) || (searchVal !== '') ? 'open' : '';
-                
-                cityAddressesHtml += `
-                    <details class="dash-address" ${isAddrOpen} data-address-id="${addr.id}" data-address-text="${addr.bank.toLowerCase()} ${addr.address.toLowerCase()}">
-                        <summary style="display: flex; align-items: center; justify-content: space-between;">
-                            <span>📍 ${addr.bank}, ${addr.address}</span>
-                            <div style="display:flex; align-items:center; gap:8px; margin-left: auto;">
-                                ${addrDots}
-                                <span style="font-size: 11px; color: var(--text-muted); font-weight: 500; margin-right: 4px;">${addrProgressText}</span>
-                                <span class="details-indicator">▼</span>
-                            </div>
-                        </summary>
-                        <div class="details-content dash-address-content">
-                            <button class="btn-outline" style="width:100%; margin-bottom:8px; font-size:12px; padding:6px 12px;" onclick="openMapInKodular('${addr.address.replace(/'/g, "\\'")}')">🗺️ Проложить маршрут</button>
-                            <div class="form-group" style="margin-bottom: 10px;">
-                                <input type="text" placeholder="🔍 Поиск по адресу (модель, S/N)..." class="address-search-input" oninput="applyAddressSearch(this)" style="margin-bottom: 0; padding: 8px 10px; font-size: 13px;">
-                            </div>
-                            <div class="address-machines-list">
-                                ${addrHtml}
-                            </div>
-                        </div>
-                    </details>
-                `;
-            });
-            
-            // Calculate City progress text inline
-            let cityProgressText = '';
-            if (cityTargetH1 > 0 || cityTargetH2 > 0) {
-                const parts = [];
-                if (cityTargetH1 > 0) parts.push(`I: ${cityCompletedH1}/${cityTargetH1}`);
-                if (cityTargetH2 > 0) parts.push(`II: ${cityCompletedH2}/${cityTargetH2}`);
-                cityProgressText = parts.join(' · ');
+        if (F > 0) {
+            const baseTarget = Math.floor(F / 2);
+            const rem = F % 2;
+            if (rem === 0) {
+                targetH1 = baseTarget;
+                targetH2 = baseTarget;
             } else {
-                const actualComp = cityAddresses.reduce((sum, addr) => {
-                    return sum + db.machines.filter(m => m.addressId == addr.id)
-                                  .reduce((sum2, m) => sum2 + db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date)).length, 0);
-                }, 0);
-                cityProgressText = actualComp > 0 ? `Выполнено: ${actualComp}` : 'По запросу';
+                const excessH1 = Math.max(0, completedH1 - baseTarget);
+                const excessH2 = Math.max(0, completedH2 - baseTarget);
+                if (excessH1 >= 1) {
+                    targetH1 = baseTarget + 1;
+                    targetH2 = baseTarget;
+                } else if (excessH2 >= 1) {
+                    targetH1 = baseTarget;
+                    targetH2 = baseTarget + 1;
+                } else {
+                    if (now.getDate() <= 15) {
+                        targetH1 = baseTarget + 1;
+                        targetH2 = baseTarget;
+                    } else {
+                        targetH1 = baseTarget;
+                        targetH2 = baseTarget + 1;
+                    }
+                }
             }
-            
-            const cityMachines = db.machines.filter(m => {
-                const a = db.addresses.find(addr => addr.id == m.addressId);
-                return a && a.route === route && (a.city || 'Кишинев') === city;
-            });
-            const cityStatus = calculateAggregateStatus(cityMachines);
-            const cityDots = getStatusDotsHtmlForAggregated(cityStatus);
-            
-            const isCityOpen = isFirstLoad || openCities.includes(route + '::' + city) || (searchVal !== '') ? 'open' : '';
-            
-            if (cityAddressesHtml !== '') {
-                routeHtml += `
-                    <details class="dash-city" ${isCityOpen} data-city-id="${route}::${city}">
-                        <summary style="display: flex; align-items: center; justify-content: space-between;">
-                            <span>🏙️ ${city}</span>
-                            <div style="display:flex; align-items:center; gap:8px; margin-left: auto;">
-                                ${cityDots}
-                                <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">${cityProgressText}</span>
-                                <span class="details-indicator">▼</span>
-                            </div>
-                        </summary>
-                        <div class="details-content dash-city-content">
-                            ${cityAddressesHtml}
-                        </div>
-                    </details>
-                `;
-            }
-        });
-        
-        // Compute progress bar percentages for Route
-        const percentH1 = totalTargetH1 > 0 ? Math.round((totalCompletedH1 / totalTargetH1) * 100) : (totalCompletedH1 > 0 ? 100 : 0);
-        const percentH2 = totalTargetH2 > 0 ? Math.round((totalCompletedH2 / totalTargetH2) * 100) : (totalCompletedH2 > 0 ? 100 : 0);
-        
-        const routeMachines = db.machines.filter(m => {
-            const a = db.addresses.find(addr => addr.id == m.addressId);
-            return a && a.route === route;
-        });
-        const routeStatus = calculateAggregateStatus(routeMachines);
-        const routeDots = getStatusDotsHtmlForAggregated(routeStatus);
-        
-        const isRouteOpen = !isFirstLoad && openRoutes.includes(route) || (searchVal !== '') ? 'open' : '';
-        
-        if (routeHtml !== '') {
-            html += `
-                <details class="dash-route" ${isRouteOpen} data-route-id="${route}">
-                    <summary>
-                        <div style="flex:1; display:flex; flex-direction:column; gap:6px; padding-right:12px;">
-                            <div style="display:flex; align-items:center; justify-content:space-between;">
-                                <span>🚗 ${route}</span>
-                                ${routeDots}
-                            </div>
-                            <div class="progress-bars-wrapper" style="display: flex; flex-direction: column; gap: 8px;">
-                                <!-- I половина -->
-                                <div class="progress-bar-container" style="margin-top: 2px;">
-                                    <div class="progress-info" style="font-size: 11px; margin-bottom: 2px;">
-                                        <span>I половина (1-15): ${percentH1}%</span>
-                                        <span>${totalCompletedH1}/${totalTargetH1} ТО</span>
-                                    </div>
-                                    <div class="progress-bar-bg" style="height: 6px;">
-                                        <div class="progress-bar-fill" style="width: ${percentH1}%; background-color: var(--primary-color);"></div>
-                                    </div>
-                                </div>
-                                <!-- II половина -->
-                                <div class="progress-bar-container" style="margin-top: 0;">
-                                    <div class="progress-info" style="font-size: 11px; margin-bottom: 2px;">
-                                        <span>II половина (16+): ${percentH2}%</span>
-                                        <span>${totalCompletedH2}/${totalTargetH2} ТО</span>
-                                    </div>
-                                    <div class="progress-bar-bg" style="height: 6px;">
-                                        <div class="progress-bar-fill" style="width: ${percentH2}%; background-color: #00838f;"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <span class="details-indicator">▼</span>
-                    </summary>
-                    <div class="details-content">
-                        <div class="form-group" style="margin-bottom: 12px;">
-                            <input type="text" placeholder="🔍 Поиск по маршруту (модель, S/N, адрес)..." class="route-search-input" oninput="applyRouteSearch(this)" style="margin-bottom: 0; padding: 8px 12px; font-size: 14px;">
-                        </div>
-                        ${routeHtml}
-                    </div>
-                </details>
-            `;
         }
+        
+        let isCompleted = false;
+        let isOverdue = false;
+        let isPending = false;
+        
+        if (F > 0) {
+            isCompleted = completedH1 >= targetH1 && completedH2 >= targetH2;
+            isOverdue = !isCompleted && isAfter15 && (completedH1 < targetH1);
+            isPending = !isCompleted && !isOverdue;
+        } else {
+            isCompleted = (completedH1 + completedH2) > 0;
+            isOverdue = false;
+            isPending = (completedH1 + completedH2) === 0;
+        }
+        
+        const machItem = { mach, a, completedH1, targetH1, completedH2, targetH2 };
+        
+        if (isOverdue) overdueList.push(machItem);
+        else if (isCompleted) completedList.push(machItem);
+        else pendingList.push(machItem);
     });
     
-    container.innerHTML = html;
+    // Update count labels on tabs
+    const countOverdueEl = document.getElementById('countOverdue');
+    const countPendingEl = document.getElementById('countPending');
+    const countCompletedEl = document.getElementById('countCompleted');
+    
+    if (countOverdueEl) countOverdueEl.innerText = overdueList.length;
+    if (countPendingEl) countPendingEl.innerText = pendingList.length;
+    if (countCompletedEl) countCompletedEl.innerText = completedList.length;
+    
+    // Determine active list
+    let activeList = [];
+    if (dashboardActiveTab === 'overdue') activeList = overdueList;
+    else if (dashboardActiveTab === 'completed') activeList = completedList;
+    else activeList = pendingList;
+    
+    // Apply search filter
+    const filteredList = activeList.filter(item => {
+        const mach = item.mach;
+        const a = item.a;
+        const searchString = `${mach.model} ${mach.serial} ${mach.inv || ''} ${mach.employee || ''} ${a ? a.bank : ''} ${a ? a.address : ''} ${a ? a.city || 'Кишинев' : ''} ${a ? a.route || '' : ''}`.toLowerCase();
+        return searchVal === '' || searchString.includes(searchVal);
+    });
+    
+    // Render flat list
+    if (filteredList.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 45px 20px; color: var(--text-secondary);">
+                <p style="font-size: 14px; margin-bottom: 8px;">Нет машин в данном списке.</p>
+                ${searchVal !== '' ? '<p style="font-size: 12px; color: var(--text-muted)">Попробуйте изменить поисковый запрос</p>' : ''}
+            </div>
+        `;
+    } else {
+        container.innerHTML = filteredList.map(item => getMachineCardHtml(item.mach, item.a, item.completedH1, item.targetH1, item.completedH2, item.targetH2)).join('');
+    }
 }
 
 // Render Database of addresses and machines
@@ -2354,11 +2234,49 @@ window.triggerHapticFeedback = triggerHapticFeedback;
 // =========================================================================
 function checkUserRole() {
     const role = localStorage.getItem('fsm_user_role');
+    const employeeName = localStorage.getItem('fsm_user_employee_name');
     const authModal = document.getElementById('roleAuthModal');
     
     if (!role) {
         if (authModal) authModal.style.display = 'flex';
+        
         populateDropdown('userRoleSelect', ['Работник', 'Администратор'], 'Работник');
+        
+        // Populate employees dropdown
+        const employeeOptions = [...db.employees, '✍️ Ввести имя вручную...'];
+        populateDropdown('userEmployeeSelect', employeeOptions, employeeOptions[0]);
+        
+        // Listeners for changes in the dropdown inputs
+        const roleInput = document.getElementById('userRoleSelect');
+        const empInput = document.getElementById('userEmployeeSelect');
+        
+        // Setup toggles
+        const updateAuthModalFields = () => {
+            const selectedRole = roleInput.value;
+            const selectedEmp = empInput.value;
+            
+            const empSelectGroup = document.getElementById('employeeSelectGroup');
+            const empManualGroup = document.getElementById('employeeManualGroup');
+            
+            if (selectedRole === 'Работник') {
+                if (empSelectGroup) empSelectGroup.style.display = 'block';
+                if (selectedEmp === '✍️ Ввести имя вручную...') {
+                    if (empManualGroup) empManualGroup.style.display = 'block';
+                } else {
+                    if (empManualGroup) empManualGroup.style.display = 'none';
+                }
+            } else {
+                if (empSelectGroup) empSelectGroup.style.display = 'none';
+                if (empManualGroup) empManualGroup.style.display = 'none';
+            }
+        };
+        
+        if (roleInput && empInput) {
+            roleInput.onchange = updateAuthModalFields;
+            empInput.onchange = updateAuthModalFields;
+            updateAuthModalFields();
+        }
+        
         document.body.classList.remove('role-worker', 'role-admin');
     } else {
         if (authModal) authModal.style.display = 'none';
@@ -2372,21 +2290,51 @@ function checkUserRole() {
         }
         
         const profileRoleText = document.getElementById('profileRoleText');
-        if (profileRoleText) profileRoleText.innerText = role;
+        if (profileRoleText) {
+            profileRoleText.innerText = role === 'Работник' ? `Работник: ${employeeName || 'Неизвестно'}` : 'Администратор';
+        }
     }
 }
 
 function confirmRole() {
-    const selectVal = document.getElementById('userRoleSelect').value || 'Работник';
-    localStorage.setItem('fsm_user_role', selectVal);
-    showToast(`👤 Роль [${selectVal}] успешно подтверждена`);
+    const roleVal = document.getElementById('userRoleSelect').value || 'Работник';
+    let employeeName = '';
+    
+    if (roleVal === 'Работник') {
+        const empVal = document.getElementById('userEmployeeSelect').value;
+        if (empVal === '✍️ Ввести имя вручную...') {
+            employeeName = document.getElementById('userEmployeeManualInput').value.trim();
+            if (!employeeName) {
+                showToast('⚠️ Введите ваше имя!');
+                return;
+            }
+            // Auto-add to dictionary if not present
+            if (!db.employees.includes(employeeName)) {
+                db.employees.push(employeeName);
+                saveData('employees', db.employees);
+            }
+        } else {
+            employeeName = empVal;
+            if (!employeeName) {
+                showToast('⚠️ Выберите сотрудника из списка!');
+                return;
+            }
+        }
+    } else {
+        employeeName = 'Администратор';
+    }
+    
+    localStorage.setItem('fsm_user_role', roleVal);
+    localStorage.setItem('fsm_user_employee_name', employeeName);
+    showToast(`👤 Вошли как [${roleVal}: ${employeeName}]`);
     checkUserRole();
     renderAll();
 }
 
 function logoutRole() {
     localStorage.removeItem('fsm_user_role');
-    showToast('👤 Сброс роли');
+    localStorage.removeItem('fsm_user_employee_name');
+    showToast('👤 Выход из профиля');
     checkUserRole();
     renderAll();
 }
