@@ -1786,12 +1786,15 @@ function renderHistory() {
     const searchVal = document.getElementById('historySearch').value.toLowerCase().trim();
     if (!container) return;
     
+    const userRole = localStorage.getItem('fsm_user_role');
+    const isAdmin = userRole === 'Администратор';
+    
     // Update weekly statistics
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const weeklyRecords = db.history.filter(h => new Date(h.date) >= oneWeekAgo);
     const weeklyCount = weeklyRecords.length;
-    const weeklyVerified = weeklyRecords.filter(h => h.checked).length;
+    const weeklyVerified = weeklyRecords.filter(h => isAdmin ? h.adminChecked : h.checked).length;
     
     const statsCountEl = document.getElementById('statsWeeklyCount');
     const statsVerifiedEl = document.getElementById('statsWeeklyVerified');
@@ -1800,11 +1803,11 @@ function renderHistory() {
     
     let filtered = db.history;
     
-    // Apply segmented control verification filters
+    // Apply segmented control verification filters (role-dependent)
     if (historyFilterStatus === 'unverified') {
-        filtered = db.history.filter(h => !h.checked);
+        filtered = db.history.filter(h => isAdmin ? !h.adminChecked : !h.checked);
     } else if (historyFilterStatus === 'verified') {
-        filtered = db.history.filter(h => h.checked);
+        filtered = db.history.filter(h => isAdmin ? h.adminChecked : h.checked);
     }
     
     // Search filter logic
