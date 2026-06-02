@@ -26,6 +26,8 @@ let db = JSON.parse(localStorage.getItem('fsm_db_v11')) || {
     history: [] 
 };
 
+let dashboardActiveDate = new Date();
+
 // Fallback initializations for older localStorage schemas
 db.models = db.models || ["Magner 150", "Kisan Newton", "SBM SB-2000"];
 db.banks = db.banks || ["MAIB", "Moldindconbank", "Victoriabank"];
@@ -89,6 +91,35 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
     initializeFirebase();
 });
+
+// Event listeners to handle app resume / visibility change and sync time
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        const now = new Date();
+        if (dashboardActiveDate.getMonth() === now.getMonth() && dashboardActiveDate.getFullYear() === now.getFullYear()) {
+            dashboardActiveDate = now;
+        }
+        renderAll();
+    }
+});
+window.addEventListener('focus', () => {
+    const now = new Date();
+    if (dashboardActiveDate.getMonth() === now.getMonth() && dashboardActiveDate.getFullYear() === now.getFullYear()) {
+        dashboardActiveDate = now;
+    }
+    renderAll();
+});
+if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
+        if (state.isActive) {
+            const now = new Date();
+            if (dashboardActiveDate.getMonth() === now.getMonth() && dashboardActiveDate.getFullYear() === now.getFullYear()) {
+                dashboardActiveDate = now;
+            }
+            renderAll();
+        }
+    });
+}
 
 // =========================================================================
 // TOAST NOTIFICATIONS
@@ -742,9 +773,21 @@ function deleteCharacteristic(machineId, charId) {
 // =========================================================================
 function isCurrentMonth(dateString) {
     const d = new Date(dateString);
-    const now = new Date();
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    return d.getMonth() === dashboardActiveDate.getMonth() && d.getFullYear() === dashboardActiveDate.getFullYear();
 }
+
+function prevMonth() {
+    dashboardActiveDate.setMonth(dashboardActiveDate.getMonth() - 1);
+    renderDashboard();
+}
+
+function nextMonth() {
+    dashboardActiveDate.setMonth(dashboardActiveDate.getMonth() + 1);
+    renderDashboard();
+}
+
+window.prevMonth = prevMonth;
+window.nextMonth = nextMonth;
 
 function openServiceModal(machineId) {
     const m = db.machines.find(x => x.id == machineId);
@@ -1250,19 +1293,32 @@ window.toggleRouteFilter = toggleRouteFilter;
 function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH2) {
     const F = mach.freq;
     
+    // Overdue calculations based on selected dashboard active month
+    const now = new Date();
+    const activeYear = dashboardActiveDate.getFullYear();
+    const activeMonth = dashboardActiveDate.getMonth();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    
+    let isAfter15 = false;
+    if (activeYear < currentYear || (activeYear === currentYear && activeMonth < currentMonth)) {
+        isAfter15 = true;
+    } else if (activeYear === currentYear && activeMonth === currentMonth) {
+        isAfter15 = now.getDate() > 15;
+    }
+
     // Status dots logic
     let dotsHtml = '<div class="status-dots">';
     if (F > 0) {
         let dotClass = 'blue';
         let tooltip = 'I половина: Ожидает';
-        const now = new Date();
         if (completedH1 >= targetH1) {
             dotClass = 'green';
             tooltip = 'I половина: Выполнено';
         } else if (completedH1 > 0) {
             dotClass = 'blue';
             tooltip = `I половина: Выполнено ${completedH1}/${targetH1}`;
-        } else if (now.getDate() > 15) {
+        } else if (isAfter15) {
             dotClass = 'red';
             tooltip = 'I половина: Просрочено';
         }
@@ -1341,8 +1397,7 @@ function renderDashboard() {
     
     // Set Month Header text (Russian Months)
     const months = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
-    const now = new Date();
-    document.getElementById('currentMonthTitle').innerText = `Чек-лист: ${months[now.getMonth()]} ${now.getFullYear()}`;
+    document.getElementById('currentMonthTitle').innerText = `Чек-лист: ${months[dashboardActiveDate.getMonth()]} ${dashboardActiveDate.getFullYear()}`;
     
     // Maintain active segment button class for tabs
     document.querySelectorAll('#tab-dashboard .segment-btn').forEach(btn => {
@@ -1378,7 +1433,18 @@ function renderDashboard() {
     const pendingList = [];
     const completedList = [];
     
-    const isAfter15 = now.getDate() > 15;
+    const now = new Date();
+    const activeYear = dashboardActiveDate.getFullYear();
+    const activeMonth = dashboardActiveDate.getMonth();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    
+    let isAfter15 = false;
+    if (activeYear < currentYear || (activeYear === currentYear && activeMonth < currentMonth)) {
+        isAfter15 = true;
+    } else if (activeYear === currentYear && activeMonth === currentMonth) {
+        isAfter15 = now.getDate() > 15;
+    }
     
     // Group progress stats by route
     const routeStats = {
@@ -1415,7 +1481,7 @@ function renderDashboard() {
                     targetH1 = baseTarget;
                     targetH2 = baseTarget + 1;
                 } else {
-                    if (now.getDate() <= 15) {
+                    if (!isAfter15) {
                         targetH1 = baseTarget + 1;
                         targetH2 = baseTarget;
                     } else {
@@ -2438,7 +2504,17 @@ function calculateAggregateStatus(machinesList) {
     let anyH2Pending = false;
     
     const now = new Date();
-    const isAfter15 = now.getDate() > 15;
+    const activeYear = dashboardActiveDate.getFullYear();
+    const activeMonth = dashboardActiveDate.getMonth();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    
+    let isAfter15 = false;
+    if (activeYear < currentYear || (activeYear === currentYear && activeMonth < currentMonth)) {
+        isAfter15 = true;
+    } else if (activeYear === currentYear && activeMonth === currentMonth) {
+        isAfter15 = now.getDate() > 15;
+    }
     
     machinesList.forEach(mach => {
         const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date));
@@ -2465,7 +2541,7 @@ function calculateAggregateStatus(machinesList) {
                     targetH1 = baseTarget;
                     targetH2 = baseTarget + 1;
                 } else {
-                    if (now.getDate() <= 15) {
+                    if (!isAfter15) {
                         targetH1 = baseTarget + 1;
                         targetH2 = baseTarget;
                     } else {
