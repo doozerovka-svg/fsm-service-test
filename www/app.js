@@ -1310,43 +1310,49 @@ function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH
     // Status dots logic
     let dotsHtml = '<div class="status-dots">';
     if (F > 0) {
-        let dotClass = 'blue';
-        let tooltip = 'I половина: Ожидает';
-        if (completedH1 >= targetH1) {
-            dotClass = 'green';
-            tooltip = 'I половина: Выполнено';
-        } else if (completedH1 > 0) {
-            dotClass = 'blue';
-            tooltip = `I половина: Выполнено ${completedH1}/${targetH1}`;
-        } else if (isAfter15) {
-            dotClass = 'red';
-            tooltip = 'I половина: Просрочено';
+        // H1 Dot
+        if (targetH1 > 0) {
+            let dotClass = 'blue';
+            let tooltip = 'I половина: Ожидает';
+            if (completedH1 >= targetH1) {
+                dotClass = 'green';
+                tooltip = 'I половина: Выполнено';
+            } else if (completedH1 > 0) {
+                dotClass = 'blue';
+                tooltip = `I половина: Выполнено ${completedH1}/${targetH1}`;
+            } else if (isAfter15) {
+                dotClass = 'red';
+                tooltip = 'I половина: Просрочено';
+            }
+            dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
+        } else {
+            const dotClass = completedH1 > 0 ? 'green' : 'grey';
+            const tooltip = completedH1 > 0 ? `I половина: Выполнено по запросу (${completedH1})` : 'I половина: ТО не требуется';
+            dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
         }
-        dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
-    } else {
-        dotsHtml += `<span class="status-dot grey" data-tooltip="I половина: ТО не требуется"></span>`;
-    }
-    
-    if (F > 0) {
-        let dotClass = 'blue';
-        let tooltip = 'II половина: Ожидает';
-        if (completedH2 >= targetH2) {
-            dotClass = 'green';
-            tooltip = 'II половина: Выполнено';
-        } else if (completedH2 > 0) {
-            dotClass = 'blue';
-            tooltip = `II половина: Выполнено ${completedH2}/${targetH2}`;
+        
+        // H2 Dot
+        if (targetH2 > 0) {
+            let dotClass = 'blue';
+            let tooltip = 'II половина: Ожидает';
+            if (completedH2 >= targetH2) {
+                dotClass = 'green';
+                tooltip = 'II половина: Выполнено';
+            } else if (completedH2 > 0) {
+                dotClass = 'blue';
+                tooltip = `II половина: Выполнено ${completedH2}/${targetH2}`;
+            }
+            dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
+        } else {
+            const dotClass = completedH2 > 0 ? 'green' : 'grey';
+            const tooltip = completedH2 > 0 ? `II половина: Выполнено по запросу (${completedH2})` : 'II половина: ТО не требуется';
+            dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
         }
-        dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
     } else {
-        dotsHtml += `<span class="status-dot grey" data-tooltip="II половина: ТО не требуется"></span>`;
-    }
-    
-    if (F === 0) {
         const totalCount = completedH1 + completedH2;
         const dotClass = totalCount > 0 ? 'green' : 'grey';
         const tooltip = totalCount > 0 ? `По запросу (Выполнено: ${totalCount})` : 'По запросу (Ожидает)';
-        dotsHtml = `<div class="status-dots"><span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
+        dotsHtml += `<span class="status-dot ${dotClass}" data-tooltip="${tooltip}"></span>`;
     }
     dotsHtml += '</div>';
 
@@ -1529,14 +1535,44 @@ function renderDashboard() {
             }
         }
         
-        // Track stats for progress bars
+        // Track stats for progress bars (planned tasks vs completed tasks)
         const routeName = a ? a.route || 'Без маршрута' : 'Без маршрута';
         if (!routeStats[routeName]) {
             routeStats[routeName] = { total: 0, completed: 0 };
         }
-        routeStats[routeName].total++;
-        if (isCompleted) {
-            routeStats[routeName].completed++;
+        
+        if (F > 0) {
+            if (dashboardActivePeriod === 'h1') {
+                routeStats[routeName].total += targetH1;
+                routeStats[routeName].completed += Math.min(completedH1, targetH1);
+            } else if (dashboardActivePeriod === 'h2') {
+                routeStats[routeName].total += targetH2;
+                routeStats[routeName].completed += Math.min(completedH2, targetH2);
+            } else {
+                // 'month'
+                routeStats[routeName].total += (targetH1 + targetH2);
+                routeStats[routeName].completed += (Math.min(completedH1, targetH1) + Math.min(completedH2, targetH2));
+            }
+        } else {
+            // F === 0 (on request)
+            if (dashboardActivePeriod === 'h1') {
+                if (completedH1 > 0) {
+                    routeStats[routeName].total += 1;
+                    routeStats[routeName].completed += 1;
+                }
+            } else if (dashboardActivePeriod === 'h2') {
+                if (completedH2 > 0) {
+                    routeStats[routeName].total += 1;
+                    routeStats[routeName].completed += 1;
+                }
+            } else {
+                // 'month'
+                const totalCompleted = completedH1 + completedH2;
+                if (totalCompleted > 0) {
+                    routeStats[routeName].total += 1;
+                    routeStats[routeName].completed += 1;
+                }
+            }
         }
         
         const machItem = { mach, a, completedH1, targetH1, completedH2, targetH2 };
