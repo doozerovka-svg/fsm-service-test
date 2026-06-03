@@ -27,6 +27,59 @@ let db = JSON.parse(localStorage.getItem('fsm_db_v11')) || {
 };
 
 let dashboardActiveDate = new Date();
+let historySelectedEmployee = 'Все инженеры';
+
+function formatSeparated(val) {
+    if (val === undefined || val === null) return '';
+    const str = String(val).trim();
+    return str.replace(/\B(?=(\d{3})+(?!\d))/g, "\u2009");
+}
+window.formatSeparated = formatSeparated;
+
+function formatInputWithSpaces(inputEl) {
+    let cursorPosition = inputEl.selectionStart;
+    let originalValue = inputEl.value;
+    let stripped = originalValue.replace(/\s/g, '');
+    let formatted = stripped.replace(/\B(?=(\d{3})+(?!\d))/g, "\u2009");
+    
+    if (formatted !== originalValue) {
+        inputEl.value = formatted;
+        let strippedCharIndex = 0;
+        let formattedCharIndex = 0;
+        let strippedTarget = originalValue.slice(0, cursorPosition).replace(/\s/g, '').length;
+        
+        while (strippedCharIndex < strippedTarget && formattedCharIndex < formatted.length) {
+            if (formatted[formattedCharIndex] !== "\u2009" && formatted[formattedCharIndex] !== " ") {
+                strippedCharIndex++;
+            }
+            formattedCharIndex++;
+        }
+        while (formattedCharIndex < formatted.length && (formatted[formattedCharIndex] === "\u2009" || formatted[formattedCharIndex] === " ")) {
+            formattedCharIndex++;
+        }
+        inputEl.setSelectionRange(formattedCharIndex, formattedCharIndex);
+    }
+}
+window.formatInputWithSpaces = formatInputWithSpaces;
+
+document.addEventListener('input', (e) => {
+    const formatIds = [
+        'addMachSerial', 'addMachInv', 
+        'detMachSerial', 'detMachInv', 
+        'modalCounter', 'editHistCounter', 
+        'modalReplacementSerial', 'editHistReplacementSerial'
+    ];
+    if (formatIds.includes(e.target.id)) {
+        formatInputWithSpaces(e.target);
+    }
+});
+
+document.addEventListener('change', (e) => {
+    if (e.target.id === 'historyEmployeeFilter') {
+        historySelectedEmployee = e.target.value;
+        renderHistory();
+    }
+});
 
 // Fallback initializations for older localStorage schemas
 db.models = db.models || ["Magner 150", "Kisan Newton", "SBM SB-2000"];
@@ -573,8 +626,8 @@ function openAddMachineModal(addressId) {
 function saveNewMachine() {
     const addressId = document.getElementById('addMachAddressId').value;
     const model = document.getElementById('addMachModel').value;
-    const serial = document.getElementById('addMachSerial').value.trim();
-    const inv = document.getElementById('addMachInv').value.trim();
+    const serial = document.getElementById('addMachSerial').value.replace(/\s/g, '');
+    const inv = document.getElementById('addMachInv').value.replace(/\s/g, '');
     const employee = document.getElementById('addMachEmployee').value;
     
     const freqVal = parseInt(document.getElementById('addMachFreq').value);
@@ -613,8 +666,8 @@ function openMachineDetails(machineId) {
     populateDropdown('detMachModel', db.models, m.model);
     populateDropdown('detMachEmployee', db.employees, m.employee || '');
     
-    document.getElementById('detMachSerial').value = m.serial;
-    document.getElementById('detMachInv').value = m.inv || '';
+    document.getElementById('detMachSerial').value = formatSeparated(m.serial);
+    document.getElementById('detMachInv').value = formatSeparated(m.inv || '');
     document.getElementById('detMachFreq').value = m.freq;
     
     renderCharacteristicsList(m.id);
@@ -628,7 +681,7 @@ function saveEditMachine() {
         const m = db.machines.find(x => x.id == id);
         if (!m) return;
         
-        const newSerial = document.getElementById('detMachSerial').value.trim();
+        const newSerial = document.getElementById('detMachSerial').value.replace(/\s/g, '');
         const newAddressId = parseInt(document.getElementById('detMachAddress').value);
 
         // Check if Serial was updated - Add log
@@ -677,7 +730,7 @@ function saveEditMachine() {
         m.addressId = newAddressId;
         m.model = document.getElementById('detMachModel').value;
         m.serial = newSerial;
-        m.inv = document.getElementById('detMachInv').value.trim();
+        m.inv = document.getElementById('detMachInv').value.replace(/\s/g, '');
         m.employee = document.getElementById('detMachEmployee').value;
         
         const freqVal = parseInt(document.getElementById('detMachFreq').value);
@@ -830,7 +883,7 @@ function openServiceModal(machineId) {
 function saveService() {
     const machineId = parseInt(document.getElementById('modalMachineId').value);
     const dateVal = document.getElementById('modalDate').value;
-    let counter = document.getElementById('modalCounter').value.trim();
+    let counter = document.getElementById('modalCounter').value.replace(/\s/g, '');
     const employee = document.getElementById('modalEmployee').value;
     let parts = document.getElementById('modalParts').value.trim();
     let notes = document.getElementById('modalNotes').value.trim();
@@ -845,7 +898,7 @@ function saveService() {
     let replacementSerial = '';
     
     if (isReplace) {
-        replacementSerial = document.getElementById('modalReplacementSerial').value.trim();
+        replacementSerial = document.getElementById('modalReplacementSerial').value.replace(/\s/g, '');
         if (!replacementSerial) {
             showToast('⚠️ Введите новый серийный номер для замены машинки!');
             return;
@@ -912,7 +965,7 @@ function openEditHistory(id) {
     
     document.getElementById('editHistId').value = id;
     document.getElementById('editHistDate').value = getLocalDatetimeString(h.date);
-    document.getElementById('editHistCounter').value = h.counter || '';
+    document.getElementById('editHistCounter').value = formatSeparated(h.counter || '');
     document.getElementById('editHistNotes').value = h.notes || '';
     document.getElementById('editHistParts').value = h.parts || '';
     
@@ -930,7 +983,7 @@ function openEditHistory(id) {
     document.getElementById('editHistReplacementContainer').style.display = hasReplace ? 'block' : 'none';
     
     // Set replacement serial number input
-    document.getElementById('editHistReplacementSerial').value = hasReplace ? (h.machineSerial || '') : '';
+    document.getElementById('editHistReplacementSerial').value = hasReplace ? formatSeparated(h.machineSerial || '') : '';
     
     // Populate performing employee dropdown
     populateDropdown('editHistEmployee', db.employees, h.employee || '');
@@ -963,7 +1016,7 @@ function saveEditHistory() {
             let replacementSerial = '';
             
             if (isReplace) {
-                replacementSerial = document.getElementById('editHistReplacementSerial').value.trim();
+                replacementSerial = document.getElementById('editHistReplacementSerial').value.replace(/\s/g, '');
                 if (!replacementSerial) {
                     showToast('⚠️ Введите новый серийный номер для замены машинки!');
                     return;
@@ -988,7 +1041,7 @@ function saveEditHistory() {
             }
             
             h.date = isoDate;
-            h.counter = document.getElementById('editHistCounter').value.trim();
+            h.counter = document.getElementById('editHistCounter').value.replace(/\s/g, '');
             h.employee = document.getElementById('editHistEmployee').value;
             h.parts = parts;
             h.notes = document.getElementById('editHistNotes').value.trim();
@@ -1374,7 +1427,7 @@ function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 8px;">
                 <div style="flex:1;">
                     <div style="font-size: 15px; font-weight:bold; color:var(--text-primary); margin-bottom: 4px;">📠 ${mach.model}</div>
-                    <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 6px;">S/N: <strong>${mach.serial}</strong>${mach.inv ? ` | Inv: <strong>${mach.inv}</strong>` : ''}</div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 6px;">S/N: <strong>${formatSeparated(mach.serial)}</strong>${mach.inv ? ` | Inv: <strong>${formatSeparated(mach.inv)}</strong>` : ''}</div>
                     <div style="font-size:13px; color:var(--text-secondary); margin-bottom: 2px; display:flex; align-items:center; gap:4px;">📍 ${addrText}</div>
                     <div style="font-size:11px; color:var(--text-muted); display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;">
                         <span>🏙️ ${cityText}</span>
@@ -1728,7 +1781,7 @@ function renderAddresses() {
                         <div class="machine-pill" onclick="openMachineDetails(${m.id})" data-machine-text="${m.model.toLowerCase()} ${m.serial.toLowerCase()} ${m.inv ? m.inv.toLowerCase() : ''}${m.employee ? ' ' + m.employee.toLowerCase() : ''}">
                             <div class="machine-pill-info">
                                 <span class="machine-model">${m.model}</span>
-                                <span class="machine-sn">S/N: ${m.serial} ${m.inv ? ' | Inv: ' + m.inv : ''}${m.employee ? ' | Отв: ' + m.employee : ''}</span>
+                                <span class="machine-sn">S/N: ${formatSeparated(m.serial)} ${m.inv ? ' | Inv: ' + formatSeparated(m.inv) : ''}${m.employee ? ' | Отв: ' + m.employee : ''}</span>
                             </div>
                             <span class="badge info" style="padding: 2px 8px; font-size:10px;">${m.freq} ТО/мес</span>
                         </div>
@@ -1825,6 +1878,9 @@ function renderHistory() {
     const userRole = localStorage.getItem('fsm_user_role');
     const isAdmin = userRole === 'Администратор';
     
+    // Populate engineer filter dropdown
+    populateDropdown('historyEmployeeFilter', ['Все инженеры', ...db.employees], historySelectedEmployee);
+    
     // Update weekly statistics
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -1838,6 +1894,11 @@ function renderHistory() {
     if (statsVerifiedEl) statsVerifiedEl.innerText = `${weeklyVerified} подтверждено`;
     
     let filtered = db.history;
+    
+    // Apply engineer filter
+    if (historySelectedEmployee && historySelectedEmployee !== 'Все инженеры') {
+        filtered = filtered.filter(h => h.employee === historySelectedEmployee);
+    }
     
     // Apply segmented control verification filters (role-dependent)
     if (historyFilterStatus === 'unverified') {
@@ -1965,8 +2026,8 @@ function renderHistory() {
                     
                     <div class="timeline-body">
                         <div class="timeline-meta-row">
-                            <div class="timeline-meta-item">S/N: <strong>${serial}</strong>${inv ? ` | Inv: <strong>${inv}</strong>` : ''}</div>
-                            ${h.counter ? `<div class="timeline-meta-item">Счетчик: <strong>${h.counter}</strong></div>` : ''}
+                            <div class="timeline-meta-item">S/N: <strong>${formatSeparated(serial)}</strong>${inv ? ` | Inv: <strong>${formatSeparated(inv)}</strong>` : ''}</div>
+                            ${h.counter ? `<div class="timeline-meta-item">Счетчик: <strong>${formatSeparated(h.counter)}</strong></div>` : ''}
                         </div>
                         <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">📍 ${clientText}</div>
                         ${h.employee ? `<div style="font-size:12px; color:var(--text-secondary); margin-bottom: 4px;">👤 Исполнитель: <strong>${h.employee}</strong></div>` : ''}
@@ -2677,7 +2738,7 @@ function renderMachineHistory(machineId, containerId) {
         return `
             <div class="mach-history-item">
                 <div class="mach-history-date">${dateStr}</div>
-                <div class="mach-history-meta">👤 ${h.employee || 'Неизвестно'} ${h.counter ? ` | 🔢 ${h.counter}` : ''}</div>
+                <div class="mach-history-meta">👤 ${h.employee || 'Неизвестно'} ${h.counter ? ` | 🔢 ${formatSeparated(h.counter)}` : ''}</div>
                 ${tasksHtml}
                 ${h.notes ? `<div class="mach-history-notes">${h.notes.replace(/\n/g, '<br>')}</div>` : ''}
                 ${h.parts ? `<div class="mach-history-parts">🛠️ Детали: ${h.parts}</div>` : ''}

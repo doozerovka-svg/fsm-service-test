@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=28.0">
+    <link rel="stylesheet" href="styles.css?v=29.0">
 </head>
 <body>
 
@@ -153,8 +153,14 @@
         <section id="tab-history" class="tab-content">
             <div class="section-header">
                 <h3>История обслуживания</h3>
-                <div class="search-wrapper">
-                    <input type="text" id="historySearch" placeholder="🔍 Поиск (банк, модель, S/N...)" oninput="renderHistory()">
+                <div class="search-wrapper" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
+                    <input type="text" id="historySearch" placeholder="🔍 Поиск (банк, модель, S/N...)" oninput="renderHistory()" style="margin-bottom: 0;">
+                    <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                        <span style="font-size: 13px; font-weight: 500; white-space: nowrap; color: var(--text-secondary);">Инженер:</span>
+                        <div class="custom-select-wrapper" id="wrapper-historyEmployeeFilter" style="flex: 1; min-width: 140px; margin: 0;">
+                            <input type="hidden" id="historyEmployeeFilter" value="Все инженеры">
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -417,7 +423,7 @@
 
             <div class="form-group">
                 <label for="modalCounter">Счетчик банкнот (оставьте пустым для автозаполнения)</label>
-                <input type="number" id="modalCounter" placeholder="Введите значение со счетчика" class="custom-input">
+                <input type="text" inputmode="numeric" id="modalCounter" placeholder="Введите значение со счетчика" class="custom-input">
             </div>
 
             <div class="form-group">
@@ -527,7 +533,7 @@
 
             <div class="form-group">
                 <label for="editHistCounter">Счетчик банкнот</label>
-                <input type="number" id="editHistCounter" class="custom-input">
+                <input type="text" inputmode="numeric" id="editHistCounter" class="custom-input">
             </div>
 
             <div class="form-group">
@@ -628,7 +634,7 @@
     </div>
 
     <!-- App Script logic -->
-    <script src="app.js?v=28.0"></script>
+    <script src="app.js?v=29.0"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>
