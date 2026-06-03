@@ -264,6 +264,10 @@ function initializeFirebase() {
             
             if (data) {
                 db = data;
+                db.prices = db.prices || {};
+                db.prices.maintenance = db.prices.maintenance || {};
+                db.prices.cities = db.prices.cities || {};
+                db.prices.parts = db.prices.parts || [];
                 // Convert arrays/objects from Firebase safely
                 db.models = ensureArray(db.models);
                 db.banks = ensureArray(db.banks);
