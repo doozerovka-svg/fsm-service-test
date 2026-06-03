@@ -90,6 +90,10 @@ db.cities = db.cities || ["Кишинев", "Бельцы"];
 db.addresses = db.addresses || [];
 db.machines = db.machines || [];
 db.history = db.history || [];
+db.prices = db.prices || {};
+db.prices.maintenance = db.prices.maintenance || {};
+db.prices.cities = db.prices.cities || {};
+db.prices.parts = db.prices.parts || [];
 
 // Deduplicate array of objects by their 'id' property, merging contents
 function deduplicateById(arr) {
@@ -2464,6 +2468,10 @@ function importDatabase(input) {
             
             doubleConfirm("ИМПОРТИРОВАТЬ базу данных (это полностью перезапишет текущую базу)", () => {
                 db = parsed;
+                db.prices = db.prices || {};
+                db.prices.maintenance = db.prices.maintenance || {};
+                db.prices.cities = db.prices.cities || {};
+                db.prices.parts = db.prices.parts || [];
                 saveData();
                 triggerHapticFeedback();
                 showToast('📥 База данных успешно восстановлена!');
@@ -2838,6 +2846,441 @@ function toggleEditReplacementVisibility(visible) {
     if (el) el.style.display = visible ? 'block' : 'none';
 }
 
+// =========================================================================
+// FINANCE & PRICING AND ACTS GENERATION (ADMIN ONLY)
+// =========================================================================
+
+let activePriceTab = 'maintenance';
+
+function openPricesModal() {
+    activePriceTab = 'maintenance';
+    
+    // Reset add part inputs
+    document.getElementById('newPartPriceName').value = '';
+    document.getElementById('newPartPriceVal').value = '';
+    populateDropdown('newPartPriceBank', ['Все банки', ...db.banks], 'Все банки');
+    
+    // Activate first tab button
+    document.querySelectorAll('#pricesModal .segmented-control .segment-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById('btnPriceTab-maintenance').classList.add('active');
+    
+    // Switch tabs views
+    document.querySelectorAll('.price-tab-content').forEach(el => el.style.display = 'none');
+    document.getElementById('priceTab-maintenance').style.display = 'block';
+    
+    renderMaintenancePrices();
+    
+    document.getElementById('pricesModal').style.display = 'flex';
+}
+
+function switchPriceTab(tabId) {
+    activePriceTab = tabId;
+    
+    document.querySelectorAll('#pricesModal .segmented-control .segment-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById('btnPriceTab-' + tabId).classList.add('active');
+    
+    document.querySelectorAll('.price-tab-content').forEach(el => el.style.display = 'none');
+    document.getElementById('priceTab-' + tabId).style.display = 'block';
+    
+    if (tabId === 'maintenance') {
+        renderMaintenancePrices();
+    } else if (tabId === 'cities') {
+        renderCityClassifications();
+    } else if (tabId === 'parts') {
+        renderPartsPrices();
+    }
+}
+
+function renderMaintenancePrices() {
+    const tbody = document.getElementById('maintenancePricesTableBody');
+    if (!tbody) return;
+    
+    let html = '';
+    const banksList = ['default', ...db.banks];
+    
+    banksList.forEach(bank => {
+        const displayName = bank === 'default' ? '<strong>Тариф по умолчанию</strong>' : bank;
+        const prices = db.prices.maintenance[bank] || { capital: 0, region: 0 };
+        
+        html += `
+            <tr>
+                <td style="padding: 8px;">${displayName}</td>
+                <td style="padding: 6px; text-align: right;">
+                    <input type="number" class="maint-price-input" data-bank="${bank}" data-type="capital" value="${prices.capital || ''}" style="text-align: right; width:100px;">
+                </td>
+                <td style="padding: 6px; text-align: right;">
+                    <input type="number" class="maint-price-input" data-bank="${bank}" data-type="region" value="${prices.region || ''}" style="text-align: right; width:100px;">
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+function renderCityClassifications() {
+    const tbody = document.getElementById('cityClassTableBody');
+    if (!tbody) return;
+    
+    let html = '';
+    db.cities.forEach(city => {
+        const currentType = db.prices.cities[city] || (city === 'Кишинев' ? 'capital' : 'region');
+        
+        html += `
+            <tr>
+                <td style="padding: 8px;">🏙️ ${city}</td>
+                <td style="padding: 6px; text-align: right;">
+                    <select class="city-type-select" data-city="${city}" style="width: 140px; padding: 4px; font-size: 13px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary);">
+                        <option value="capital" ${currentType === 'capital' ? 'selected' : ''}>Столица</option>
+                        <option value="region" ${currentType === 'region' ? 'selected' : ''}>Окраина</option>
+                    </select>
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+function renderPartsPrices() {
+    const tbody = document.getElementById('partsPricesTableBody');
+    if (!tbody) return;
+    
+    let html = '';
+    const parts = db.prices.parts || [];
+    
+    if (parts.length === 0) {
+        html = '<tr><td colspan="4" style="text-align: center; padding: 12px; color: var(--text-muted);">Прайс-лист запчастей пуст</td></tr>';
+    } else {
+        // Sort parts by bank, then name
+        const sorted = [...parts].sort((a, b) => {
+            if (a.bank !== b.bank) return a.bank.localeCompare(b.bank);
+            return a.name.localeCompare(b.name);
+        });
+        
+        sorted.forEach(p => {
+            html += `
+                <tr>
+                    <td style="padding: 8px;">${p.name}</td>
+                    <td style="padding: 8px; color: var(--text-secondary);">${p.bank}</td>
+                    <td style="padding: 8px; text-align: right; font-weight: 500;">${formatSeparated(p.price)} Lei</td>
+                    <td style="padding: 6px; text-align: center;">
+                        <button class="btn-danger" onclick="deletePartPrice(${p.id})" style="padding: 2px 6px; font-size: 11px; min-height: 24px; margin:0;">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+    tbody.innerHTML = html;
+}
+
+function addPartPrice() {
+    const name = document.getElementById('newPartPriceName').value.trim();
+    const bank = document.getElementById('newPartPriceBank').value;
+    const priceVal = document.getElementById('newPartPriceVal').value.replace(/\s/g, '');
+    const price = parseFloat(priceVal);
+    
+    if (!name) {
+        showToast('⚠️ Введите название запчасти!');
+        return;
+    }
+    if (isNaN(price) || price < 0) {
+        showToast('⚠️ Введите корректную цену!');
+        return;
+    }
+    
+    db.prices.parts = db.prices.parts || [];
+    db.prices.parts.push({
+        id: Date.now(),
+        name,
+        bank,
+        price
+    });
+    
+    renderPartsPrices();
+    
+    // Clear name and price values
+    document.getElementById('newPartPriceName').value = '';
+    document.getElementById('newPartPriceVal').value = '';
+    showToast('✅ Деталь добавлена в прайс-лист!');
+}
+
+function deletePartPrice(id) {
+    db.prices.parts = (db.prices.parts || []).filter(p => p.id != id);
+    renderPartsPrices();
+    showToast('🗑️ Деталь удалена из прайс-листа');
+}
+
+function savePricesSettings() {
+    // 1. Save maintenance prices
+    const maintenanceInputs = document.querySelectorAll('.maint-price-input');
+    maintenanceInputs.forEach(input => {
+        const bank = input.getAttribute('data-bank');
+        const type = input.getAttribute('data-type');
+        const val = parseFloat(input.value);
+        
+        db.prices.maintenance[bank] = db.prices.maintenance[bank] || { capital: 0, region: 0 };
+        db.prices.maintenance[bank][type] = isNaN(val) ? 0 : val;
+    });
+    
+    // 2. Save city classifications
+    const citySelects = document.querySelectorAll('.city-type-select');
+    citySelects.forEach(sel => {
+        const city = sel.getAttribute('data-city');
+        const val = sel.value;
+        db.prices.cities[city] = val;
+    });
+    
+    // 3. Save to LocalStorage & Firebase
+    saveData('prices', db.prices);
+    closeAllModals();
+    showToast('✅ Прайс-листы успешно сохранены!');
+}
+
+// =========================================================================
+// ACTS GENERATION & VIEW
+// =========================================================================
+
+function openActsModal() {
+    // Populate Banks dropdown
+    populateDropdown('actBankSelect', db.banks);
+    
+    // Generate and populate Month selector with last 12 months
+    const monthsRu = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+    const monthsOptions = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        monthsOptions.push(`${monthsRu[d.getMonth()]} ${d.getFullYear()}`);
+    }
+    populateDropdown('actMonthSelect', monthsOptions);
+    
+    // Clear preview
+    document.getElementById('actReportPreviewContainer').innerHTML = `
+        <p style="text-align: center; color: var(--text-muted); font-size: 14px; margin-top: 50px;">Заполните параметры выше и нажмите «Сформировать»</p>
+    `;
+    document.getElementById('btnPrintActBtn').style.display = 'none';
+    
+    document.getElementById('actsModal').style.display = 'flex';
+}
+
+function calculateMaintenanceCost(bank, city) {
+    const cityType = db.prices.cities[city] || (city === 'Кишинев' ? 'capital' : 'region');
+    const bankPrices = db.prices.maintenance[bank];
+    if (bankPrices && bankPrices[cityType] !== undefined && bankPrices[cityType] !== 0) {
+        return bankPrices[cityType];
+    }
+    // Fallback to default price
+    const defaultPrices = db.prices.maintenance['default'];
+    if (defaultPrices && defaultPrices[cityType] !== undefined) {
+        return defaultPrices[cityType];
+    }
+    return 0;
+}
+
+function calculatePartsCost(bank, partsString) {
+    if (!partsString || partsString.trim() === '') {
+        return { detail: [], total: 0 };
+    }
+    
+    const partsArray = partsString.split(',').map(p => p.trim()).filter(p => p.length > 0);
+    const detail = [];
+    let total = 0;
+    
+    partsArray.forEach(partName => {
+        // Try finding a matching part price for this bank or "Все банки"
+        const cleanName = partName.toLowerCase();
+        let matched = (db.prices.parts || []).find(p => p.name.toLowerCase() === cleanName && p.bank === bank);
+        if (!matched) {
+            // Try "Все банки"
+            matched = (db.prices.parts || []).find(p => p.name.toLowerCase() === cleanName && p.bank === 'Все банки');
+        }
+        
+        const price = matched ? matched.price : 0;
+        total += price;
+        detail.push({
+            name: partName,
+            price: price,
+            found: !!matched
+        });
+    });
+    
+    return { detail, total };
+}
+
+function renderActReport() {
+    const bank = document.getElementById('actBankSelect').value;
+    const period = document.getElementById('actMonthSelect').value;
+    
+    if (!bank || !period) {
+        showToast('⚠️ Выберите банк и отчетный период!');
+        return;
+    }
+    
+    // Parse Period
+    const [monthName, yearStr] = period.split(' ');
+    const monthsRu = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+    const monthIndex = monthsRu.indexOf(monthName);
+    const year = parseInt(yearStr);
+    
+    // Filter history records for this bank and month
+    const bankMachinesIds = db.machines.filter(m => {
+        const a = db.addresses.find(addr => addr.id == m.addressId);
+        return a && a.bank === bank;
+    }).map(m => m.id);
+    
+    const monthlyHistory = db.history.filter(h => {
+        if (!bankMachinesIds.includes(h.machineId)) return false;
+        const d = new Date(h.date);
+        return d.getMonth() === monthIndex && d.getFullYear() === year;
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    const previewContainer = document.getElementById('actReportPreviewContainer');
+    
+    if (monthlyHistory.length === 0) {
+        previewContainer.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                <p style="font-size: 15px; margin-bottom: 8px;">Нет записей обслуживания за выбранный период.</p>
+                <p style="font-size: 12px; color: var(--text-muted)">Убедитесь, что выполненные ТО подтверждены мастером или присутствуют в истории.</p>
+            </div>
+        `;
+        document.getElementById('btnPrintActBtn').style.display = 'none';
+        return;
+    }
+    
+    let tableRowsHtml = '';
+    let totalMaintSum = 0;
+    let totalPartsSum = 0;
+    let itemIndex = 1;
+    
+    monthlyHistory.forEach(h => {
+        const m = db.machines.find(mach => mach.id == h.machineId);
+        const a = db.addresses.find(addr => addr.id == (m ? m.addressId : null));
+        
+        const dateStr = new Date(h.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const addressText = a ? `${a.city || 'Кишинев'}, ${a.address}` : 'Удаленный адрес';
+        const modelSnText = m ? `📠 ${m.model}<br><span style="font-size: 11px; color: var(--text-secondary);">S/N: ${formatSeparated(h.machineSerial || m.serial)}</span>` : 'Неизвестно';
+        
+        // Calculate maintenance cost
+        let isMaintenance = h.tasks && (h.tasks.includes('Обслуживание машинки') || h.tasks.includes('Замена машинки'));
+        const city = a ? a.city || 'Кишинев' : 'Кишинев';
+        const maintCost = isMaintenance ? calculateMaintenanceCost(bank, city) : 0;
+        totalMaintSum += maintCost;
+        
+        // Calculate parts cost
+        const partsInfo = calculatePartsCost(bank, h.parts);
+        totalPartsSum += partsInfo.total;
+        
+        // Done works string
+        const worksText = h.tasks ? h.tasks.join(', ') : 'Работы';
+        
+        // Replaced parts HTML
+        let partsHtml = '';
+        if (partsInfo.detail.length > 0) {
+            partsHtml = partsInfo.detail.map(p => {
+                if (p.found) {
+                    return `• ${p.name} (${formatSeparated(p.price)} Lei)`;
+                } else {
+                    return `<span style="background: #fff8db; color: #856404; padding: 1px 4px; border-radius: 2px; font-size:11px;" title="Деталь не найдена в прайс-листе. Цена: 0">⚠️ ${p.name} (0 Lei)</span>`;
+                }
+            }).join('<br>');
+        } else {
+            partsHtml = '<span style="color:var(--text-muted); font-size:11px;">Нет</span>';
+        }
+        
+        const rowTotal = maintCost + partsInfo.total;
+        
+        tableRowsHtml += `
+            <tr style="border-bottom: 1px solid #ddd; font-size: 12px;">
+                <td style="padding: 6px; text-align: center; border: 1px solid #ddd;">${itemIndex++}</td>
+                <td style="padding: 6px; text-align: center; border: 1px solid #ddd; white-space: nowrap;">${dateStr}</td>
+                <td style="padding: 6px; border: 1px solid #ddd;">${addressText}</td>
+                <td style="padding: 6px; border: 1px solid #ddd;">${modelSnText}</td>
+                <td style="padding: 6px; border: 1px solid #ddd; color: var(--text-secondary);">${worksText}</td>
+                <td style="padding: 6px; text-align: right; border: 1px solid #ddd; white-space: nowrap;">${formatSeparated(maintCost)} Lei</td>
+                <td style="padding: 6px; border: 1px solid #ddd;">${partsHtml}</td>
+                <td style="padding: 6px; text-align: right; border: 1px solid #ddd; white-space: nowrap;">${formatSeparated(partsInfo.total)} Lei</td>
+                <td style="padding: 6px; text-align: right; border: 1px solid #ddd; font-weight: bold; white-space: nowrap;">${formatSeparated(rowTotal)} Lei</td>
+            </tr>
+        `;
+    });
+    
+    const grandTotal = totalMaintSum + totalPartsSum;
+    
+    // Act markup
+    const reportHtml = `
+        <div id="actReportPrintArea" style="font-family: inherit; color: #000; padding: 10px 0;">
+            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px;">
+                <h2 style="margin: 0 0 5px 0; font-size: 18px; text-transform: uppercase; font-weight: bold;">Акт выполненных работ</h2>
+                <div style="font-size: 13px; font-weight: 500;">за отчетный период: <strong>${period}</strong></div>
+            </div>
+            
+            <div style="margin-bottom: 15px; font-size: 13px; line-height: 1.4;">
+                <div><strong>Исполнитель:</strong> Сервисная служба FSM (🛠️ Мастера обслуживания машин)</div>
+                <div><strong>Заказчик:</strong> КБ "${bank}" А.О.</div>
+            </div>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #ddd;">
+                <thead>
+                    <tr style="background: #f2f2f2; font-size: 11px; text-transform: uppercase;">
+                        <th style="border: 1px solid #ddd; padding: 6px; text-align: center; width: 30px;">№</th>
+                        <th style="border: 1px solid #ddd; padding: 6px; text-align: center; width: 70px;">Дата</th>
+                        <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">Адрес точки</th>
+                        <th style="border: 1px solid #ddd; padding: 6px; text-align: left; width: 140px;">Оборудование</th>
+                        <th style="border: 1px solid #ddd; padding: 6px; text-align: left; width: 120px;">Выполненные работы</th>
+                        <th style="border: 1px solid #ddd; padding: 6px; text-align: right; width: 85px;">Цена ТО</th>
+                        <th style="border: 1px solid #ddd; padding: 6px; text-align: left; width: 130px;">Запчасти</th>
+                        <th style="border: 1px solid #ddd; padding: 6px; text-align: right; width: 85px;">Цена запч.</th>
+                        <th style="border: 1px solid #ddd; padding: 6px; text-align: right; width: 90px;">Всего</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableRowsHtml}
+                </tbody>
+            </table>
+            
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 14px; line-height: 1.6;">
+                <div style="width: 320px; border: 1px solid #000; padding: 12px; border-radius: var(--radius-sm); background: #fdfdfd;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span>Итого за обслуживание:</span>
+                        <strong>${formatSeparated(totalMaintSum)} Lei</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px; border-bottom: 1px dashed #ccc; padding-bottom:4px;">
+                        <span>Итого за запчасти:</span>
+                        <strong>${formatSeparated(totalPartsSum)} Lei</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size: 16px; font-weight: bold; margin-top:4px;">
+                        <span>Всего к оплате:</span>
+                        <span style="color: var(--success-color);">${formatSeparated(grandTotal)} Lei</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 50px; font-size: 13px; border-top: 1px solid #ddd; padding-top: 20px;">
+                <div>
+                    <div>От Исполнителя:</div>
+                    <div style="margin-top: 30px; border-bottom: 1px solid #000; width: 200px; height: 20px;"></div>
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">(подпись, фамилия, М.П.)</div>
+                </div>
+                <div>
+                    <div>От Заказчика:</div>
+                    <div style="margin-top: 30px; border-bottom: 1px solid #000; width: 200px; height: 20px;"></div>
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">(подпись, фамилия, М.П.)</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    previewContainer.innerHTML = reportHtml;
+    document.getElementById('btnPrintActBtn').style.display = 'block';
+}
+
+function printGeneratedAct() {
+    window.print();
+}
+
 window.confirmRole = confirmRole;
 window.logoutRole = logoutRole;
 window.togglePrevServiceHistory = togglePrevServiceHistory;
@@ -2845,5 +3288,13 @@ window.togglePartsVisibility = togglePartsVisibility;
 window.toggleReplacementVisibility = toggleReplacementVisibility;
 window.toggleEditPartsVisibility = toggleEditPartsVisibility;
 window.toggleEditReplacementVisibility = toggleEditReplacementVisibility;
+window.openPricesModal = openPricesModal;
+window.switchPriceTab = switchPriceTab;
+window.addPartPrice = addPartPrice;
+window.deletePartPrice = deletePartPrice;
+window.savePricesSettings = savePricesSettings;
+window.openActsModal = openActsModal;
+window.renderActReport = renderActReport;
+window.printGeneratedAct = printGeneratedAct;
 
 
