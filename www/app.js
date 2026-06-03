@@ -1317,7 +1317,15 @@ function renderDictContainer(containerId, type) {
 // Render Dashboard Check-list
 let dashboardActiveTab = localStorage.getItem('fsm_dash_active_tab') || 'all';
 let dashboardActivePeriod = localStorage.getItem('fsm_dash_period') || 'month';
+let dashboardActiveSort = localStorage.getItem('fsm_dash_sort') || 'address';
 let dashboardSelectedRoute = null;
+
+function setDashboardSort(sortVal) {
+    dashboardActiveSort = sortVal;
+    localStorage.setItem('fsm_dash_sort', sortVal);
+    renderDashboard();
+}
+window.setDashboardSort = setDashboardSort;
 
 function setDashboardTab(tab) {
     dashboardActiveTab = tab;
@@ -1343,7 +1351,7 @@ function toggleRouteFilter(routeName) {
 }
 window.toggleRouteFilter = toggleRouteFilter;
 
-function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH2) {
+function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH2, isCompleted, isOverdue, isPending) {
     const F = mach.freq;
     
     // Overdue calculations based on selected dashboard active month
@@ -1422,8 +1430,17 @@ function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH
         progressDesc = `По запросу (Выполнено: ${completedH1 + completedH2})`;
     }
 
+    let borderLeftColor = 'var(--primary-color)';
+    if (isOverdue) {
+        borderLeftColor = 'var(--danger-color)';
+    } else if (isCompleted) {
+        borderLeftColor = 'var(--success-color)';
+    } else if (F === 0) {
+        borderLeftColor = '#a0aec0'; // neutral grey for F=0 on-demand machines
+    }
+
     return `
-        <div class="card glass-card machine-check-card" style="margin-bottom: 12px; padding: 15px; position:relative; border-left: 5px solid var(--primary-color);">
+        <div class="card glass-card machine-check-card" style="margin-bottom: 12px; padding: 15px; position:relative; border-left: 5px solid ${borderLeftColor};">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 8px;">
                 <div style="flex:1;">
                     <div style="font-size: 15px; font-weight:bold; color:var(--text-primary); margin-bottom: 4px;">📠 ${mach.model}</div>
@@ -1473,6 +1490,13 @@ function renderDashboard() {
     });
     const activePeriodBtn = document.getElementById('periodTab-' + dashboardActivePeriod);
     if (activePeriodBtn) activePeriodBtn.classList.add('active');
+
+    // Maintain active segment button class for sorting
+    document.querySelectorAll('#dashboardSortControl .segment-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const activeSortBtn = document.getElementById('sortTab-' + dashboardActiveSort);
+    if (activeSortBtn) activeSortBtn.classList.add('active');
     
     if (db.machines.length === 0) {
         container.innerHTML = `
@@ -1628,7 +1652,7 @@ function renderDashboard() {
             }
         }
         
-        const machItem = { mach, a, completedH1, targetH1, completedH2, targetH2 };
+        const machItem = { mach, a, completedH1, targetH1, completedH2, targetH2, isCompleted, isOverdue, isPending };
         
         // Push to status lists only if matching the selected route filter (or if filter is empty)
         if (!dashboardSelectedRoute || routeName === dashboardSelectedRoute) {
@@ -1715,6 +1739,39 @@ function renderDashboard() {
         return searchVal === '' || searchString.includes(searchVal);
     });
     
+    // Apply sorting
+    filteredList.sort((itemA, itemB) => {
+        if (dashboardActiveSort === 'status') {
+            const wA = itemA.isOverdue ? 1 : (itemA.isPending ? (itemA.mach.freq > 0 ? 2 : 3) : 4);
+            const wB = itemB.isOverdue ? 1 : (itemB.isPending ? (itemB.mach.freq > 0 ? 2 : 3) : 4);
+            if (wA !== wB) return wA - wB;
+        }
+
+        const routeA = (itemA.a ? itemA.a.route || '' : '').toLowerCase();
+        const routeB = (itemB.a ? itemB.a.route || '' : '').toLowerCase();
+        if (routeA !== routeB) return routeA.localeCompare(routeB);
+
+        const cityA = (itemA.a ? itemA.a.city || '' : '').toLowerCase();
+        const cityB = (itemB.a ? itemB.a.city || '' : '').toLowerCase();
+        if (cityA !== cityB) return cityA.localeCompare(cityB);
+
+        const bankA = (itemA.a ? itemA.a.bank || '' : '').toLowerCase();
+        const bankB = (itemB.a ? itemB.a.bank || '' : '').toLowerCase();
+        if (bankA !== bankB) return bankA.localeCompare(bankB);
+
+        const addressA = (itemA.a ? itemA.a.address || '' : '').toLowerCase();
+        const addressB = (itemB.a ? itemB.a.address || '' : '').toLowerCase();
+        if (addressA !== addressB) return addressA.localeCompare(addressB);
+
+        const modelA = (itemA.mach.model || '').toLowerCase();
+        const modelB = (itemB.mach.model || '').toLowerCase();
+        if (modelA !== modelB) return modelA.localeCompare(modelB);
+
+        const serialA = (itemA.mach.serial || '').toLowerCase();
+        const serialB = (itemB.mach.serial || '').toLowerCase();
+        return serialA.localeCompare(serialB);
+    });
+
     // Render flat list
     if (filteredList.length === 0) {
         container.innerHTML = `
@@ -1724,7 +1781,7 @@ function renderDashboard() {
             </div>
         `;
     } else {
-        container.innerHTML = filteredList.map(item => getMachineCardHtml(item.mach, item.a, item.completedH1, item.targetH1, item.completedH2, item.targetH2)).join('');
+        container.innerHTML = filteredList.map(item => getMachineCardHtml(item.mach, item.a, item.completedH1, item.targetH1, item.completedH2, item.targetH2, item.isCompleted, item.isOverdue, item.isPending)).join('');
     }
 }
 
