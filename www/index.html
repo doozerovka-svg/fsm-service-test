@@ -469,8 +469,23 @@
             </div>
             
             <div class="form-group" id="modalPartsContainer" style="display: none;">
-                <label for="modalParts">Использованные запчасти (ручной ввод)</label>
-                <textarea id="modalParts" rows="2" placeholder="Например: Ролики захвата - 2 шт, ремень - 1 шт" class="custom-textarea"></textarea>
+                <label>Использованные запчасти</label>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-end;">
+                    <div style="flex: 2;">
+                        <label style="font-size: 11px; margin-bottom: 2px; font-weight: normal; color: var(--text-secondary);">Выберите деталь</label>
+                        <select id="modalPartsSelect" class="custom-input" style="height: 36px; padding: 4px; font-size: 13px; margin: 0; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-primary);"></select>
+                    </div>
+                    <div style="width: 70px;">
+                        <label style="font-size: 11px; margin-bottom: 2px; font-weight: normal; color: var(--text-secondary);">Кол-во</label>
+                        <input type="number" id="modalPartsQty" value="1" min="1" max="100" class="custom-input" style="height: 36px; text-align: center; padding: 4px; margin: 0; width: 100%;">
+                    </div>
+                    <button type="button" class="btn-outline" onclick="addSelectedPartToReport('modal')" style="height: 36px; padding: 0 12px; margin: 0; min-height: auto; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">➕</button>
+                </div>
+                <div id="modalPartsSelectedList" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; padding: 6px; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); background: rgba(0,0,0,0.01);"></div>
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: var(--success-color);">
+                    Стоимость запчастей: <span id="modalPartsCostPreview">0.00 EUR</span>
+                </div>
+                <textarea id="modalParts" rows="2" placeholder="Нажмите кнопку + выше для добавления деталей, либо перечислите через запятую..." class="custom-textarea"></textarea>
             </div>
 
             <div class="form-group" id="modalReplacementContainer" style="display: none;">
@@ -579,8 +594,23 @@
             </div>
             
             <div class="form-group" id="editHistPartsContainer" style="display: none;">
-                <label for="editHistParts">Использованные запчасти</label>
-                <textarea id="editHistParts" rows="2" class="custom-textarea"></textarea>
+                <label>Использованные запчасти</label>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-end;">
+                    <div style="flex: 2;">
+                        <label style="font-size: 11px; margin-bottom: 2px; font-weight: normal; color: var(--text-secondary);">Выберите деталь</label>
+                        <select id="editHistPartsSelect" class="custom-input" style="height: 36px; padding: 4px; font-size: 13px; margin: 0; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-primary);"></select>
+                    </div>
+                    <div style="width: 70px;">
+                        <label style="font-size: 11px; margin-bottom: 2px; font-weight: normal; color: var(--text-secondary);">Кол-во</label>
+                        <input type="number" id="editHistPartsQty" value="1" min="1" max="100" class="custom-input" style="height: 36px; text-align: center; padding: 4px; margin: 0; width: 100%;">
+                    </div>
+                    <button type="button" class="btn-outline" onclick="addSelectedPartToReport('editHist')" style="height: 36px; padding: 0 12px; margin: 0; min-height: auto; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">➕</button>
+                </div>
+                <div id="editHistPartsSelectedList" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; padding: 6px; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); background: rgba(0,0,0,0.01);"></div>
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: var(--success-color);">
+                    Стоимость запчастей: <span id="editHistPartsCostPreview">0.00 EUR</span>
+                </div>
+                <textarea id="editHistParts" rows="2" placeholder="Нажмите кнопку + выше для добавления деталей, либо перечислите через запятую..." class="custom-textarea"></textarea>
             </div>
 
             <div class="form-group" id="editHistReplacementContainer" style="display: none;">
@@ -649,30 +679,47 @@
             
             <!-- Вкладка 3: Запчасти -->
             <div id="priceTab-parts" class="price-tab-content" style="display: none;">
-                <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: flex-end;">
-                    <div style="flex: 2;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; align-items: flex-end;">
+                    <div style="grid-column: span 2;">
                         <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Название запчасти</label>
-                        <input type="text" id="newPartPriceName" placeholder="Напр. Ролик захвата" class="custom-input" style="margin:0; height:34px; font-size:13px;">
+                        <input type="text" id="newPartPriceName" placeholder="Напр. Ролик захвата" class="custom-input" style="margin:0; height:34px; font-size:13px; width: 100%;">
                     </div>
-                    <div style="flex: 1.5;">
+                    <div>
                         <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Банк</label>
                         <div class="custom-select-wrapper" id="wrapper-newPartPriceBank" style="margin:0; height:34px;">
                             <input type="hidden" id="newPartPriceBank" value="Все банки">
                         </div>
                     </div>
-                    <div style="flex: 1;">
-                        <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Цена (Lei)</label>
-                        <input type="text" inputmode="numeric" id="newPartPriceVal" placeholder="250" class="custom-input" style="margin:0; height:34px; font-size:13px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Модель машины</label>
+                        <div class="custom-select-wrapper" id="wrapper-newPartPriceModel" style="margin:0; height:34px;">
+                            <input type="hidden" id="newPartPriceModel" value="Все модели">
+                        </div>
                     </div>
-                    <button class="btn-success" onclick="addPartPrice()" style="height:34px; padding: 0 12px; margin:0; font-size:13px;">➕</button>
+                    <div>
+                        <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Цена</label>
+                        <input type="text" inputmode="numeric" id="newPartPriceVal" placeholder="10" class="custom-input" style="margin:0; height:34px; font-size:13px; width: 100%;">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Валюта</label>
+                        <select id="newPartPriceCurrency" style="margin:0; height:34px; font-size:13px; padding: 0 8px; width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary);">
+                            <option value="EUR">EUR</option>
+                            <option value="MDL">MDL</option>
+                            <option value="USD">USD</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end;">
+                        <button class="btn-success" onclick="addPartPrice()" style="height:34px; width: 100%; margin:0; font-size:13px; display: flex; align-items: center; justify-content: center; gap: 4px;">➕ Добавить</button>
+                    </div>
                 </div>
                 <div style="max-height: 250px; overflow-y: auto; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
                     <table class="report-table" style="width:100%; border-collapse: collapse; font-size:13px;">
                         <thead>
                             <tr style="background: var(--bg-main); border-bottom: 1px solid var(--border-color);">
                                 <th style="text-align: left; padding: 8px;">Запчасть</th>
-                                <th style="text-align: left; padding: 8px; width: 120px;">Банк</th>
-                                <th style="text-align: right; padding: 8px; width: 80px;">Цена (Lei)</th>
+                                <th style="text-align: left; padding: 8px; width: 100px;">Модель</th>
+                                <th style="text-align: left; padding: 8px; width: 100px;">Банк</th>
+                                <th style="text-align: right; padding: 8px; width: 80px;">Цена</th>
                                 <th style="text-align: center; padding: 8px; width: 50px;">Удал.</th>
                             </tr>
                         </thead>

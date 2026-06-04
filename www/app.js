@@ -95,6 +95,44 @@ db.prices.maintenance = db.prices.maintenance || {};
 db.prices.cities = db.prices.cities || {};
 db.prices.parts = db.prices.parts || [];
 
+if (db.prices.parts.length === 0) {
+    db.prices.parts = [
+        { id: 1001, name: "РУЧКА", bank: "Все банки", model: "BPS C1", price: 11.2, currency: "EUR" },
+        { id: 1002, name: "ПЕЧАТНАЯ ПЛАТА C1-F-IO", bank: "Все банки", model: "BPS C1", price: 177.31, currency: "EUR" },
+        { id: 1003, name: "ПЕЧАТНАЯ ПЛАТА C1-F-TUV", bank: "Все банки", model: "BPS C1", price: 75.48, currency: "EUR" },
+        { id: 1004, name: "МАГНИТНАЯ ГОЛОВКА HF-901-2", bank: "Все банки", model: "BPS C1", price: 65.55, currency: "EUR" },
+        { id: 1005, name: "ДАТЧИК ИЗОБРАЖЕНИЯ MC06H", bank: "Все банки", model: "BPS C1", price: 384.71, currency: "EUR" },
+        { id: 1006, name: "ШЛЕЙФ P1-A к CIS", bank: "Все банки", model: "BPS C1", price: 7.69, currency: "EUR" },
+        { id: 1007, name: "ШЛЕЙФ P3-S к MRS", bank: "Все банки", model: "BPS C1", price: 9.21, currency: "EUR" },
+        { id: 1008, name: "ШЛЕЙФ P4-MT0 к MT1", bank: "Все банки", model: "BPS C1", price: 9.87, currency: "EUR" },
+        { id: 1009, name: "ЖК-ДИСПЛЕЙ ST035QVTN03", bank: "Все банки", model: "BPS C1", price: 109.82, currency: "EUR" },
+        { id: 1010, name: "ОПТОВОЛОКНО LD02-01", bank: "Все банки", model: "BPS C1", price: 174.42, currency: "EUR" },
+        { id: 1011, name: "ЗУБЧАТЫЙ РЕМЕНЬ 168-3Mх5", bank: "Все банки", model: "BPS C1", price: 11.53, currency: "EUR" },
+        { id: 1012, name: "ЗУБЧАТЫЙ ШКИВ S3Mх18T", bank: "Все банки", model: "BPS C1", price: 5.92, currency: "EUR" },
+        { id: 1013, name: "ЗУБЧАТЫЙ ШКИВ D S3Mх18Tх8", bank: "Все банки", model: "BPS C1", price: 5.92, currency: "EUR" },
+        { id: 1014, name: "ПЕЧАТНАЯ ПЛАТА C1-F-BLD", bank: "Все банки", model: "BPS C1", price: 199.58, currency: "EUR" },
+        { id: 1015, name: "ПЕЧАТНАЯ ПЛАТА PW-SW", bank: "Все банки", model: "BPS C1", price: 52.5, currency: "EUR" },
+        { id: 1016, name: "МОТОР NC6000", bank: "Все банки", model: "BPS C1", price: 68.97, currency: "EUR" },
+        
+        { id: 1017, name: "РУЧКА", bank: "Все банки", model: "BPS C2", price: 11.2, currency: "EUR" },
+        { id: 1018, name: "ПЕЧАТНАЯ ПЛАТА C1-F-IO", bank: "Все банки", model: "BPS C2", price: 177.31, currency: "EUR" },
+        { id: 1019, name: "ПЕЧАТНАЯ ПЛАТА C1-F-TUV", bank: "Все банки", model: "BPS C2", price: 75.48, currency: "EUR" },
+        { id: 1020, name: "МАГНИТНАЯ ГОЛОВКА HF-901-2", bank: "Все банки", model: "BPS C2", price: 65.55, currency: "EUR" },
+        { id: 1021, name: "ДАТЧИК ИЗОБРАЖЕНИЯ MC06H", bank: "Все банки", model: "BPS C2", price: 384.71, currency: "EUR" },
+        { id: 1022, name: "ШЛЕЙФ P1-A к CIS", bank: "Все банки", model: "BPS C2", price: 7.69, currency: "EUR" },
+        { id: 1023, name: "ШЛЕЙФ P3-S к MRS", bank: "Все банки", model: "BPS C2", price: 9.21, currency: "EUR" },
+        { id: 1024, name: "ШЛЕЙФ P4-MT0 к MT1", bank: "Все банки", model: "BPS C2", price: 9.87, currency: "EUR" },
+        { id: 1025, name: "ЖК-ДИСПЛЕЙ ST035QVTN03", bank: "Все банки", model: "BPS C2", price: 109.82, currency: "EUR" },
+        { id: 1026, name: "ОПТОВОЛОКНО LD02-01", bank: "Все банки", model: "BPS C2", price: 174.42, currency: "EUR" },
+        { id: 1027, name: "ЗУБЧАТЫЙ РЕМЕНЬ 168-3Mх5", bank: "Все банки", model: "BPS C2", price: 11.53, currency: "EUR" },
+        { id: 1028, name: "ЗУБЧАТЫЙ ШКИВ S3Mх18T", bank: "Все банки", model: "BPS C2", price: 5.92, currency: "EUR" },
+        { id: 1029, name: "ЗУБЧАТЫЙ ШКИВ D S3Mх18Tх8", bank: "Все банки", model: "BPS C2", price: 5.92, currency: "EUR" },
+        { id: 1030, name: "ПЕЧАТНАЯ ПЛАТА C1-F-BLD", bank: "Все банки", model: "BPS C2", price: 199.58, currency: "EUR" },
+        { id: 1031, name: "ПЕЧАТНАЯ ПЛАТА PW-SW", bank: "Все банки", model: "BPS C2", price: 52.5, currency: "EUR" },
+        { id: 1032, name: "МОТОР NC6000", bank: "Все банки", model: "BPS C2", price: 68.97, currency: "EUR" }
+    ];
+}
+
 // Deduplicate array of objects by their 'id' property, merging contents
 function deduplicateById(arr) {
     if (!Array.isArray(arr)) return [];
@@ -865,6 +903,7 @@ function openServiceModal(machineId) {
     document.getElementById('modalCounter').value = '';
     document.getElementById('modalNotes').value = '';
     document.getElementById('modalParts').value = '';
+    setupPartsSelector('modal', m.model, a.bank, '');
     
     // Reset service type checkboxes and conditional containers
     document.getElementById('workCheckMaintenance').checked = true;
@@ -995,6 +1034,13 @@ function openEditHistory(id) {
     
     // Populate performing employee dropdown
     populateDropdown('editHistEmployee', db.employees, h.employee || '');
+    
+    // Initialize parts selector widget
+    const m = db.machines.find(x => x.id == h.machineId);
+    const a = m ? db.addresses.find(x => x.id == m.addressId) : null;
+    const model = m ? m.model : 'Все модели';
+    const bank = a ? a.bank : 'Все банки';
+    setupPartsSelector('editHist', model, bank, h.parts || '');
     
     document.getElementById('editHistoryModal').style.display = 'flex';
 }
@@ -2863,6 +2909,7 @@ function openPricesModal() {
     document.getElementById('newPartPriceName').value = '';
     document.getElementById('newPartPriceVal').value = '';
     populateDropdown('newPartPriceBank', ['Все банки', ...db.banks], 'Все банки');
+    populateDropdown('newPartPriceModel', ['Все модели', ...db.models], 'Все модели');
     
     // Activate first tab button
     document.querySelectorAll('#pricesModal .segmented-control .segment-btn').forEach(btn => {
@@ -2956,20 +3003,26 @@ function renderPartsPrices() {
     const parts = db.prices.parts || [];
     
     if (parts.length === 0) {
-        html = '<tr><td colspan="4" style="text-align: center; padding: 12px; color: var(--text-muted);">Прайс-лист запчастей пуст</td></tr>';
+        html = '<tr><td colspan="5" style="text-align: center; padding: 12px; color: var(--text-muted);">Прайс-лист запчастей пуст</td></tr>';
     } else {
-        // Sort parts by bank, then name
+        // Sort parts by model, then bank, then name
         const sorted = [...parts].sort((a, b) => {
+            const modelA = a.model || 'Все модели';
+            const modelB = b.model || 'Все модели';
+            if (modelA !== modelB) return modelA.localeCompare(modelB);
             if (a.bank !== b.bank) return a.bank.localeCompare(b.bank);
             return a.name.localeCompare(b.name);
         });
         
         sorted.forEach(p => {
+            const model = p.model || 'Все модели';
+            const currency = p.currency || 'MDL';
             html += `
                 <tr>
                     <td style="padding: 8px;">${p.name}</td>
+                    <td style="padding: 8px; color: var(--text-secondary);">${model}</td>
                     <td style="padding: 8px; color: var(--text-secondary);">${p.bank}</td>
-                    <td style="padding: 8px; text-align: right; font-weight: 500;">${formatSeparated(p.price)} Lei</td>
+                    <td style="padding: 8px; text-align: right; font-weight: 500;">${formatSeparated(p.price)} ${currency}</td>
                     <td style="padding: 6px; text-align: center;">
                         <button class="btn-danger" onclick="deletePartPrice(${p.id})" style="padding: 2px 6px; font-size: 11px; min-height: 24px; margin:0;">🗑️</button>
                     </td>
@@ -2982,7 +3035,9 @@ function renderPartsPrices() {
 
 function addPartPrice() {
     const name = document.getElementById('newPartPriceName').value.trim();
-    const bank = document.getElementById('newPartPriceBank').value;
+    const bank = document.getElementById('newPartPriceBank').value || 'Все банки';
+    const model = document.getElementById('newPartPriceModel').value || 'Все модели';
+    const currency = document.getElementById('newPartPriceCurrency').value || 'EUR';
     const priceVal = document.getElementById('newPartPriceVal').value.replace(/\s/g, '');
     const price = parseFloat(priceVal);
     
@@ -3000,7 +3055,9 @@ function addPartPrice() {
         id: Date.now(),
         name,
         bank,
-        price
+        model,
+        price,
+        currency
     });
     
     renderPartsPrices();
@@ -3084,34 +3141,67 @@ function calculateMaintenanceCost(bank, city) {
     return 0;
 }
 
-function calculatePartsCost(bank, partsString) {
+function calculatePartsCost(bank, partsString, machineModel = 'Все модели') {
     if (!partsString || partsString.trim() === '') {
-        return { detail: [], total: 0 };
+        return { detail: [], total: {}, totalString: '0.00 EUR' };
     }
     
     const partsArray = partsString.split(',').map(p => p.trim()).filter(p => p.length > 0);
     const detail = [];
-    let total = 0;
+    const totals = {};
     
-    partsArray.forEach(partName => {
-        // Try finding a matching part price for this bank or "Все банки"
-        const cleanName = partName.toLowerCase();
-        let matched = (db.prices.parts || []).find(p => p.name.toLowerCase() === cleanName && p.bank === bank);
-        if (!matched) {
-            // Try "Все банки"
-            matched = (db.prices.parts || []).find(p => p.name.toLowerCase() === cleanName && p.bank === 'Все банки');
+    partsArray.forEach(partItem => {
+        let name = partItem;
+        let qty = 1;
+        
+        const qtyMatch = partItem.match(/(.+?)\s*[-x*]\s*(\d+)\s*(?:шт)?/i) || partItem.match(/(.+?)\s*(\d+)\s*шт/i);
+        if (qtyMatch) {
+            name = qtyMatch[1].trim();
+            qty = parseInt(qtyMatch[2], 10);
+        } else {
+            const trailingQtyMatch = partItem.match(/(.+?)\s+(\d+)$/);
+            if (trailingQtyMatch) {
+                const candidateName = trailingQtyMatch[1].trim();
+                const matchedInDb = (db.prices.parts || []).some(p => p.name.toLowerCase() === candidateName.toLowerCase());
+                if (matchedInDb) {
+                    name = candidateName;
+                    qty = parseInt(trailingQtyMatch[2], 10);
+                }
+            }
         }
         
-        const price = matched ? matched.price : 0;
-        total += price;
-        detail.push({
-            name: partName,
-            price: price,
-            found: !!matched
-        });
+        const partInfo = getMatchedPartInfo(name, bank, machineModel);
+        if (partInfo) {
+            const price = partInfo.price;
+            const currency = partInfo.currency || 'MDL';
+            const itemTotal = price * qty;
+            
+            totals[currency] = (totals[currency] || 0) + itemTotal;
+            
+            detail.push({
+                name: partInfo.name,
+                price: price,
+                qty: qty,
+                total: itemTotal,
+                currency: currency,
+                found: true
+            });
+        } else {
+            detail.push({
+                name: name,
+                price: 0,
+                qty: qty,
+                total: 0,
+                currency: 'MDL',
+                found: false
+            });
+        }
     });
     
-    return { detail, total };
+    const sumParts = Object.keys(totals).map(curr => `${formatSeparated(totals[curr].toFixed(2))} ${curr}`);
+    const totalString = sumParts.length > 0 ? sumParts.join(' + ') : '0.00 EUR';
+    
+    return { detail, total: totals, totalString };
 }
 
 function renderActReport() {
@@ -3137,9 +3227,10 @@ function renderActReport() {
     
     const monthlyHistory = db.history.filter(h => {
         if (!bankMachinesIds.includes(h.machineId)) return false;
+        
         const d = new Date(h.date);
         return d.getMonth() === monthIndex && d.getFullYear() === year;
-    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+    });
     
     const previewContainer = document.getElementById('actReportPreviewContainer');
     
@@ -3156,7 +3247,7 @@ function renderActReport() {
     
     let tableRowsHtml = '';
     let totalMaintSum = 0;
-    let totalPartsSum = 0;
+    const totalPartsSums = {};
     let itemIndex = 1;
     
     monthlyHistory.forEach(h => {
@@ -3174,8 +3265,10 @@ function renderActReport() {
         totalMaintSum += maintCost;
         
         // Calculate parts cost
-        const partsInfo = calculatePartsCost(bank, h.parts);
-        totalPartsSum += partsInfo.total;
+        const partsInfo = calculatePartsCost(bank, h.parts, m ? m.model : 'Все модели');
+        Object.keys(partsInfo.total).forEach(curr => {
+            totalPartsSums[curr] = (totalPartsSums[curr] || 0) + partsInfo.total[curr];
+        });
         
         // Done works string
         const worksText = h.tasks ? h.tasks.join(', ') : 'Работы';
@@ -3185,16 +3278,22 @@ function renderActReport() {
         if (partsInfo.detail.length > 0) {
             partsHtml = partsInfo.detail.map(p => {
                 if (p.found) {
-                    return `• ${p.name} (${formatSeparated(p.price)} Lei)`;
+                    return `• ${p.name} x${p.qty} (${formatSeparated(p.price)} ${p.currency})`;
                 } else {
-                    return `<span style="background: #fff8db; color: #856404; padding: 1px 4px; border-radius: 2px; font-size:11px;" title="Деталь не найдена в прайс-листе. Цена: 0">⚠️ ${p.name} (0 Lei)</span>`;
+                    return `<span style="background: #fff8db; color: #856404; padding: 1px 4px; border-radius: 2px; font-size:11px;" title="Деталь не найдена в прайс-листе. Цена: 0">⚠️ ${p.name} (0 MDL)</span>`;
                 }
             }).join('<br>');
         } else {
             partsHtml = '<span style="color:var(--text-muted); font-size:11px;">Нет</span>';
         }
         
-        const rowTotal = maintCost + partsInfo.total;
+        // Row totals by currency
+        const rowTotals = { MDL: maintCost };
+        Object.keys(partsInfo.total).forEach(curr => {
+            rowTotals[curr] = (rowTotals[curr] || 0) + partsInfo.total[curr];
+        });
+        const rowTotalStr = Object.keys(rowTotals).filter(curr => rowTotals[curr] > 0).map(curr => `${formatSeparated(rowTotals[curr].toFixed(2))} ${curr}`).join(' + ') || '0.00 MDL';
+        const rowPartsTotalStr = Object.keys(partsInfo.total).map(curr => `${formatSeparated(partsInfo.total[curr].toFixed(2))} ${curr}`).join(' + ') || '0.00 MDL';
         
         tableRowsHtml += `
             <tr style="border-bottom: 1px solid #ddd; font-size: 12px;">
@@ -3205,13 +3304,20 @@ function renderActReport() {
                 <td style="padding: 6px; border: 1px solid #ddd; color: var(--text-secondary);">${worksText}</td>
                 <td style="padding: 6px; text-align: right; border: 1px solid #ddd; white-space: nowrap;">${formatSeparated(maintCost)} Lei</td>
                 <td style="padding: 6px; border: 1px solid #ddd;">${partsHtml}</td>
-                <td style="padding: 6px; text-align: right; border: 1px solid #ddd; white-space: nowrap;">${formatSeparated(partsInfo.total)} Lei</td>
-                <td style="padding: 6px; text-align: right; border: 1px solid #ddd; font-weight: bold; white-space: nowrap;">${formatSeparated(rowTotal)} Lei</td>
+                <td style="padding: 6px; text-align: right; border: 1px solid #ddd; white-space: nowrap;">${rowPartsTotalStr}</td>
+                <td style="padding: 6px; text-align: right; border: 1px solid #ddd; font-weight: bold; white-space: nowrap;">${rowTotalStr}</td>
             </tr>
         `;
     });
     
-    const grandTotal = totalMaintSum + totalPartsSum;
+    const totalPartsSumStr = Object.keys(totalPartsSums).map(curr => `${formatSeparated(totalPartsSums[curr].toFixed(2))} ${curr}`).join(' + ') || '0.00 MDL';
+    
+    // Grand Total string
+    const grandTotals = { MDL: totalMaintSum };
+    Object.keys(totalPartsSums).forEach(curr => {
+        grandTotals[curr] = (grandTotals[curr] || 0) + totalPartsSums[curr];
+    });
+    const grandTotalStr = Object.keys(grandTotals).filter(curr => grandTotals[curr] > 0).map(curr => `${formatSeparated(grandTotals[curr].toFixed(2))} ${curr}`).join(' + ') || `${formatSeparated(totalMaintSum)} MDL`;
     
     // Act markup
     const reportHtml = `
@@ -3253,11 +3359,11 @@ function renderActReport() {
                     </div>
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px; border-bottom: 1px dashed #ccc; padding-bottom:4px;">
                         <span>Итого за запчасти:</span>
-                        <strong>${formatSeparated(totalPartsSum)} Lei</strong>
+                        <strong>${totalPartsSumStr}</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between; font-size: 16px; font-weight: bold; margin-top:4px;">
                         <span>Всего к оплате:</span>
-                        <span style="color: var(--success-color);">${formatSeparated(grandTotal)} Lei</span>
+                        <span style="color: var(--success-color);">${grandTotalStr}</span>
                     </div>
                 </div>
             </div>
@@ -3284,6 +3390,224 @@ function renderActReport() {
 function printGeneratedAct() {
     window.print();
 }
+
+let currentSelectedParts = {
+    modal: [],
+    editHist: []
+};
+
+function setupPartsSelector(prefix, machineModel, bankName, initialText) {
+    const select = document.getElementById(prefix + 'PartsSelect');
+    if (!select) return;
+    
+    // Parse current parts string
+    currentSelectedParts[prefix] = parsePartsString(initialText, bankName, machineModel);
+    renderSelectedPartsList(prefix, bankName, machineModel);
+    
+    // Filter compatible parts
+    const compatibleParts = (db.prices.parts || []).filter(p => {
+        const pModel = (p.model || 'Все модели').toLowerCase();
+        const mModel = machineModel.toLowerCase();
+        return pModel === 'все модели' || 
+               mModel.includes(pModel) || 
+               (pModel.includes('c1') && mModel.includes('c1')) || 
+               (pModel.includes('c2') && mModel.includes('c2'));
+    });
+    
+    // Deduplicate by name
+    const uniquePartNames = [];
+    compatibleParts.forEach(p => {
+        if (!uniquePartNames.includes(p.name)) {
+            uniquePartNames.push(p.name);
+        }
+    });
+    uniquePartNames.sort((a, b) => a.localeCompare(b, 'ru'));
+    
+    // Populate dropdown options
+    select.innerHTML = '<option value="">-- Выберите деталь --</option>';
+    uniquePartNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.innerText = name;
+        select.appendChild(option);
+    });
+    
+    // Reset inputs
+    document.getElementById(prefix + 'PartsQty').value = 1;
+}
+
+function parsePartsString(partsString, bankName, machineModel) {
+    if (!partsString || partsString.trim() === '') return [];
+    
+    const partsArray = partsString.split(',').map(p => p.trim()).filter(p => p.length > 0);
+    const result = [];
+    
+    partsArray.forEach(partItem => {
+        let name = partItem;
+        let qty = 1;
+        
+        const qtyMatch = partItem.match(/(.+?)\s*[-x*]\s*(\d+)\s*(?:шт)?/i) || partItem.match(/(.+?)\s*(\d+)\s*шт/i);
+        if (qtyMatch) {
+            name = qtyMatch[1].trim();
+            qty = parseInt(qtyMatch[2], 10);
+        } else {
+            const trailingQtyMatch = partItem.match(/(.+?)\s+(\d+)$/);
+            if (trailingQtyMatch) {
+                const candidateName = trailingQtyMatch[1].trim();
+                const matchedInDb = (db.prices.parts || []).some(p => p.name.toLowerCase() === candidateName.toLowerCase());
+                if (matchedInDb) {
+                    name = candidateName;
+                    qty = parseInt(trailingQtyMatch[2], 10);
+                }
+            }
+        }
+        
+        result.push({ name, qty });
+    });
+    
+    return result;
+}
+
+function renderSelectedPartsList(prefix, bankName, machineModel) {
+    const listEl = document.getElementById(prefix + 'PartsSelectedList');
+    if (!listEl) return;
+    
+    const parts = currentSelectedParts[prefix];
+    if (parts.length === 0) {
+        listEl.innerHTML = '<div style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 4px;">Нет добавленных деталей</div>';
+        updatePartsTextareaAndPreview(prefix, bankName, machineModel);
+        return;
+    }
+    
+    let html = '';
+    parts.forEach((item, index) => {
+        // Find price to display
+        const partInfo = getMatchedPartInfo(item.name, bankName, machineModel);
+        const priceText = partInfo ? `${formatSeparated(partInfo.price)} ${partInfo.currency}` : 'Цена не найдена';
+        
+        html += `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 4px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: 12px; margin-bottom: 4px;">
+                <span><strong>${item.name}</strong> x ${item.qty} <span style="color: var(--text-muted); margin-left: 4px;">(${priceText} за шт.)</span></span>
+                <button type="button" class="btn-danger" onclick="removeSelectedPartFromReport('${prefix}', ${index}, '${bankName}', '${machineModel.replace(/'/g, "\\'")}')" style="padding: 2px 6px; font-size: 10px; min-height: auto; margin: 0; width: auto; height: auto; display: inline-flex;">🗑️</button>
+            </div>
+        `;
+    });
+    listEl.innerHTML = html;
+    
+    updatePartsTextareaAndPreview(prefix, bankName, machineModel);
+}
+
+function getMatchedPartInfo(partName, bankName, machineModel) {
+    const cleanName = partName.toLowerCase();
+    // Try bank match and model match
+    let matched = (db.prices.parts || []).find(p => {
+        const pModel = (p.model || 'Все модели').toLowerCase();
+        const mModel = machineModel.toLowerCase();
+        const modelMatch = pModel === 'все модели' || mModel.includes(pModel) || (pModel.includes('c1') && mModel.includes('c1')) || (pModel.includes('c2') && mModel.includes('c2'));
+        return p.name.toLowerCase() === cleanName && p.bank === bankName && modelMatch;
+    });
+    
+    if (!matched) {
+        // Try "Все банки" match
+        matched = (db.prices.parts || []).find(p => {
+            const pModel = (p.model || 'Все модели').toLowerCase();
+            const mModel = machineModel.toLowerCase();
+            const modelMatch = pModel === 'все модели' || mModel.includes(pModel) || (pModel.includes('c1') && mModel.includes('c1')) || (pModel.includes('c2') && mModel.includes('c2'));
+            return p.name.toLowerCase() === cleanName && p.bank === 'Все банки' && modelMatch;
+        });
+    }
+    
+    return matched || null;
+}
+
+function addSelectedPartToReport(prefix) {
+    const select = document.getElementById(prefix + 'PartsSelect');
+    const qtyInput = document.getElementById(prefix + 'PartsQty');
+    if (!select || !qtyInput) return;
+    
+    const name = select.value;
+    const qty = parseInt(qtyInput.value, 10);
+    
+    if (!name) {
+        showToast('⚠️ Выберите деталь из списка!');
+        return;
+    }
+    if (isNaN(qty) || qty < 1) {
+        showToast('⚠️ Введите корректное количество!');
+        return;
+    }
+    
+    // Get machine and bank to pass to renderer
+    let bankName = 'Все банки';
+    let machineModel = 'Все модели';
+    
+    if (prefix === 'modal') {
+        const machineId = document.getElementById('modalMachineId').value;
+        const m = db.machines.find(x => x.id == machineId);
+        const a = m ? db.addresses.find(x => x.id == m.addressId) : null;
+        if (m) machineModel = m.model;
+        if (a) bankName = a.bank;
+    } else {
+        const editHistId = document.getElementById('editHistId').value;
+        const h = db.history.find(x => x.id == editHistId);
+        const m = h ? db.machines.find(x => x.id == h.machineId) : null;
+        const a = m ? db.addresses.find(x => x.id == m.addressId) : null;
+        if (m) machineModel = m.model;
+        if (a) bankName = a.bank;
+    }
+    
+    const parts = currentSelectedParts[prefix];
+    const existing = parts.find(p => p.name === name);
+    if (existing) {
+        existing.qty += qty;
+    } else {
+        parts.push({ name, qty });
+    }
+    
+    renderSelectedPartsList(prefix, bankName, machineModel);
+    
+    // Reset selection
+    select.value = '';
+    qtyInput.value = 1;
+}
+
+function removeSelectedPartFromReport(prefix, index, bankName, machineModel) {
+    currentSelectedParts[prefix].splice(index, 1);
+    renderSelectedPartsList(prefix, bankName, machineModel);
+}
+
+function updatePartsTextareaAndPreview(prefix, bankName, machineModel) {
+    const textarea = document.getElementById(prefix === 'modal' ? 'modalParts' : 'editHistParts');
+    const preview = document.getElementById(prefix + 'PartsCostPreview');
+    if (!textarea) return;
+    
+    const parts = currentSelectedParts[prefix];
+    const textValue = parts.map(p => `${p.name} - ${p.qty} шт`).join(', ');
+    
+    // Avoid circular event update if they are editing textarea manually
+    if (textarea.value !== textValue) {
+        textarea.value = textValue;
+    }
+    
+    // Update live preview sum
+    if (preview) {
+        const costSums = {};
+        parts.forEach(item => {
+            const partInfo = getMatchedPartInfo(item.name, bankName, machineModel);
+            if (partInfo) {
+                const currency = partInfo.currency || 'MDL';
+                costSums[currency] = (costSums[currency] || 0) + (partInfo.price * item.qty);
+            }
+        });
+        
+        const sumParts = Object.keys(costSums).map(curr => `${formatSeparated(costSums[curr].toFixed(2))} ${curr}`);
+        preview.innerText = sumParts.length > 0 ? sumParts.join(' + ') : '0.00 EUR';
+    }
+}
+
+// Bind global window events
+window.addSelectedPartToReport = addSelectedPartToReport;
+window.removeSelectedPartFromReport = removeSelectedPartFromReport;
 
 window.confirmRole = confirmRole;
 window.logoutRole = logoutRole;
