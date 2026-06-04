@@ -3401,6 +3401,41 @@ let currentSelectedParts = {
     editHist: []
 };
 
+function normalizeModelName(str) {
+    if (!str) return '';
+    const val = str.toLowerCase().trim();
+    const cyrToLat = {
+        'а': 'a',
+        'в': 'b',
+        'с': 'c',
+        'е': 'e',
+        'н': 'h',
+        'к': 'k',
+        'м': 'm',
+        'о': 'o',
+        'р': 'p',
+        'т': 't',
+        'х': 'x',
+        'у': 'y',
+        'і': 'i',
+        'ѕ': 's'
+    };
+    return val.split('').map(char => cyrToLat[char] || char).join('');
+}
+
+function isPartModelMatch(pModelStr, mModelStr) {
+    const rawPModel = (pModelStr || 'Все модели').toLowerCase().trim();
+    if (rawPModel === 'все модели' || rawPModel === 'vse modeli' || rawPModel === 'all' || rawPModel === 'all models') return true;
+    
+    const pModel = normalizeModelName(pModelStr || '');
+    const mModel = normalizeModelName(mModelStr || '');
+    
+    return mModel.includes(pModel) || 
+           pModel.includes(mModel) || 
+           (pModel.includes('c1') && mModel.includes('c1')) || 
+           (pModel.includes('c2') && mModel.includes('c2'));
+}
+
 function setupPartsSelector(prefix, machineModel, bankName, initialText) {
     const select = document.getElementById(prefix + 'PartsSelect');
     if (!select) return;
@@ -3411,12 +3446,7 @@ function setupPartsSelector(prefix, machineModel, bankName, initialText) {
     
     // Filter compatible parts
     const compatibleParts = (db.prices.parts || []).filter(p => {
-        const pModel = (p.model || 'Все модели').toLowerCase();
-        const mModel = machineModel.toLowerCase();
-        return pModel === 'все модели' || 
-               mModel.includes(pModel) || 
-               (pModel.includes('c1') && mModel.includes('c1')) || 
-               (pModel.includes('c2') && mModel.includes('c2'));
+        return isPartModelMatch(p.model, machineModel);
     });
     
     // Deduplicate by name
@@ -3503,22 +3533,20 @@ function renderSelectedPartsList(prefix, bankName, machineModel) {
 }
 
 function getMatchedPartInfo(partName, bankName, machineModel) {
-    const cleanName = partName.toLowerCase();
+    const cleanName = partName.toLowerCase().trim();
     // Try bank match and model match
     let matched = (db.prices.parts || []).find(p => {
-        const pModel = (p.model || 'Все модели').toLowerCase();
-        const mModel = machineModel.toLowerCase();
-        const modelMatch = pModel === 'все модели' || mModel.includes(pModel) || (pModel.includes('c1') && mModel.includes('c1')) || (pModel.includes('c2') && mModel.includes('c2'));
-        return p.name.toLowerCase() === cleanName && p.bank === bankName && modelMatch;
+        return p.name.toLowerCase().trim() === cleanName && 
+               p.bank === bankName && 
+               isPartModelMatch(p.model, machineModel);
     });
     
     if (!matched) {
         // Try "Все банки" match
         matched = (db.prices.parts || []).find(p => {
-            const pModel = (p.model || 'Все модели').toLowerCase();
-            const mModel = machineModel.toLowerCase();
-            const modelMatch = pModel === 'все модели' || mModel.includes(pModel) || (pModel.includes('c1') && mModel.includes('c1')) || (pModel.includes('c2') && mModel.includes('c2'));
-            return p.name.toLowerCase() === cleanName && p.bank === 'Все банки' && modelMatch;
+            return p.name.toLowerCase().trim() === cleanName && 
+                   p.bank === 'Все банки' && 
+                   isPartModelMatch(p.model, machineModel);
         });
     }
     
