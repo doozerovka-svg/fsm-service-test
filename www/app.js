@@ -129,7 +129,7 @@ db.history = db.history || [];
 db.prices = db.prices || {};
 db.prices.maintenance = db.prices.maintenance || {};
 db.prices.cities = db.prices.cities || {};
-db.prices.parts = db.prices.parts || [];
+db.prices.parts = ensureArray(db.prices.parts);
 
 if (db.prices.parts.length === 0) {
     db.prices.parts = [...defaultBpsParts];
@@ -307,7 +307,7 @@ function initializeFirebase() {
                 db.prices = db.prices || {};
                 db.prices.maintenance = db.prices.maintenance || {};
                 db.prices.cities = db.prices.cities || {};
-                db.prices.parts = db.prices.parts || [];
+                db.prices.parts = ensureArray(db.prices.parts);
                 if (db.prices.parts.length === 0) {
                     db.prices.parts = [...defaultBpsParts];
                 }
@@ -2526,7 +2526,7 @@ function importDatabase(input) {
                 db.prices = db.prices || {};
                 db.prices.maintenance = db.prices.maintenance || {};
                 db.prices.cities = db.prices.cities || {};
-                db.prices.parts = db.prices.parts || [];
+                db.prices.parts = ensureArray(db.prices.parts);
                 saveData();
                 triggerHapticFeedback();
                 showToast('📥 База данных успешно восстановлена!');
