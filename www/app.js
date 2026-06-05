@@ -878,6 +878,13 @@ function isCurrentMonth(dateString) {
     return d.getMonth() === dashboardActiveDate.getMonth() && d.getFullYear() === dashboardActiveDate.getFullYear();
 }
 
+function isActualService(h) {
+    if (!h.tasks || h.tasks.length === 0) {
+        return true;
+    }
+    return h.tasks.some(task => task !== "Перемещение оборудования" && task !== "Замена системной платы / Смена S/N");
+}
+
 function prevMonth() {
     dashboardActiveDate.setMonth(dashboardActiveDate.getMonth() - 1);
     renderDashboard();
@@ -1594,7 +1601,7 @@ function renderDashboard() {
     db.machines.forEach(mach => {
         const a = db.addresses.find(addr => addr.id == mach.addressId);
         
-        const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date));
+        const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date) && isActualService(h));
         const completedH1 = thisMonthServices.filter(h => new Date(h.date).getDate() <= 15).length;
         const completedH2 = thisMonthServices.filter(h => new Date(h.date).getDate() > 15).length;
         
@@ -2732,7 +2739,7 @@ function calculateAggregateStatus(machinesList) {
     }
     
     machinesList.forEach(mach => {
-        const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date));
+        const thisMonthServices = db.history.filter(h => h.machineId == mach.id && isCurrentMonth(h.date) && isActualService(h));
         const completedH1 = thisMonthServices.filter(h => new Date(h.date).getDate() <= 15).length;
         const completedH2 = thisMonthServices.filter(h => new Date(h.date).getDate() > 15).length;
         
