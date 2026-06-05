@@ -1592,10 +1592,10 @@ function renderDashboard() {
     
     // Group progress stats by route
     const routeStats = {
-        'Без маршрута': { total: 0, completed: 0 }
+        'Без маршрута': { total: 0, completed: 0, hasMachines: false, hasScheduled: false }
     };
     db.routes.forEach(r => {
-        routeStats[r] = { total: 0, completed: 0 };
+        routeStats[r] = { total: 0, completed: 0, hasMachines: false, hasScheduled: false };
     });
     
     db.machines.forEach(mach => {
@@ -1676,7 +1676,11 @@ function renderDashboard() {
         // Track stats for progress bars (planned tasks vs completed tasks)
         const routeName = a ? a.route || 'Без маршрута' : 'Без маршрута';
         if (!routeStats[routeName]) {
-            routeStats[routeName] = { total: 0, completed: 0 };
+            routeStats[routeName] = { total: 0, completed: 0, hasMachines: false, hasScheduled: false };
+        }
+        routeStats[routeName].hasMachines = true;
+        if (mach.freq > 0) {
+            routeStats[routeName].hasScheduled = true;
         }
         
         if (F > 0) {
@@ -1727,12 +1731,13 @@ function renderDashboard() {
     // Render Route Progress Bars
     const routeProgressListEl = document.getElementById('routeProgressList');
     if (routeProgressListEl) {
-        const activeRoutes = Object.keys(routeStats).filter(r => routeStats[r].total > 0).sort();
+        const activeRoutes = Object.keys(routeStats).filter(r => routeStats[r].total > 0 || routeStats[r].hasMachines).sort();
         if (activeRoutes.length === 0) {
             routeProgressListEl.innerHTML = '<p style="font-size:12px; color:var(--text-muted); padding: 4px 0; margin: 0; grid-column: 1 / -1; text-align: center;">Нет данных по маршрутам</p>';
         } else {
             const routesCardsHtml = activeRoutes.map(routeName => {
                 const stats = routeStats[routeName];
+                const isOnRequest = stats.hasMachines && !stats.hasScheduled;
                 const percent = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
                 
                 let fillBarColor = 'var(--primary-color)';
@@ -1744,18 +1749,27 @@ function renderDashboard() {
                     fillBarColor = '#d1d5db';
                 }
                 
+                const statusText = isOnRequest 
+                    ? `По запросу` 
+                    : `${percent}% (${stats.completed}/${stats.total})`;
+                const statusColor = isOnRequest
+                    ? 'var(--text-secondary)'
+                    : (percent === 100 ? 'var(--success-color)' : 'var(--primary-color)');
+                
                 const isActiveFilter = dashboardSelectedRoute === routeName;
                 return `
                     <div class="route-progress-card ${isActiveFilter ? 'active-filter' : ''}" 
                          onclick="toggleRouteFilter('${routeName.replace(/'/g, "\\'")}')"
                          style="background: rgba(0, 86, 179, 0.03); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: center; min-height: 48px; cursor: pointer; transition: var(--transition-quick);">
-                        <div style="display:flex; justify-content:space-between; margin-bottom: 6px; font-size:11px; font-weight:600; gap: 4px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom: ${isOnRequest ? '0' : '6px'}; font-size:11px; font-weight:600; gap: 4px;">
                             <span style="color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex: 1;" title="${routeName}">${routeName}</span>
-                            <span style="color:${percent === 100 ? 'var(--success-color)' : 'var(--primary-color)'}; white-space: nowrap;">${percent}% (${stats.completed}/${stats.total})</span>
+                            <span style="color:${statusColor}; white-space: nowrap;">${statusText}</span>
                         </div>
+                        ${isOnRequest ? '' : `
                         <div style="background: rgba(0,0,0,0.06); height: 5px; border-radius: 3px; overflow: hidden; position: relative;">
                             <div style="background: ${fillBarColor}; width: ${percent}%; height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 3px;"></div>
                         </div>
+                        `}
                     </div>
                 `;
             }).join('');
