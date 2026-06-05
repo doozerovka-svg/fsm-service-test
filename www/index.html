@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=34.0">
+    <link rel="stylesheet" href="styles.css?v=36.0">
 </head>
 <body>
 
@@ -679,6 +679,7 @@
             
             <!-- Вкладка 3: Запчасти -->
             <div id="priceTab-parts" class="price-tab-content" style="display: none;">
+                <input type="hidden" id="editingPartPriceId" value="">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; align-items: flex-end;">
                     <div style="grid-column: span 2;">
                         <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Название запчасти</label>
@@ -708,19 +709,26 @@
                             <option value="USD">USD</option>
                         </select>
                     </div>
-                    <div style="display: flex; justify-content: flex-end;">
-                        <button class="btn-success" onclick="addPartPrice()" style="height:34px; width: 100%; margin:0; font-size:13px; display: flex; align-items: center; justify-content: center; gap: 4px;">➕ Добавить</button>
+                    <div style="display: flex; gap: 4px; justify-content: flex-end; align-items: center;">
+                        <button type="button" id="btnCancelPartPriceEdit" class="btn-outline" onclick="cancelPartPriceEdit()" style="display: none; height:34px; margin:0; font-size:13px; padding: 0 10px; align-items: center; justify-content: center;" title="Отмена редактирования">❌</button>
+                        <button id="btnAddPartPrice" class="btn-success" onclick="addPartPrice()" style="height:34px; width: 100%; margin:0; font-size:13px; display: flex; align-items: center; justify-content: center; gap: 4px;">➕ Добавить</button>
                     </div>
                 </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <input type="text" id="searchPartPrice" placeholder="🔍 Поиск по названию, модели или банку..." class="custom-input" style="margin:0; height:34px; font-size:13px; width:100%; box-sizing: border-box;" oninput="renderPartsPrices()">
+                </div>
+
                 <div style="max-height: 250px; overflow-y: auto; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
                     <table class="report-table" style="width:100%; border-collapse: collapse; font-size:13px;">
                         <thead>
                             <tr style="background: var(--bg-main); border-bottom: 1px solid var(--border-color);">
                                 <th style="text-align: left; padding: 8px;">Запчасть</th>
-                                <th style="text-align: left; padding: 8px; width: 100px;">Модель</th>
-                                <th style="text-align: left; padding: 8px; width: 100px;">Банк</th>
-                                <th style="text-align: right; padding: 8px; width: 80px;">Цена</th>
-                                <th style="text-align: center; padding: 8px; width: 50px;">Удал.</th>
+                                <th style="text-align: left; padding: 8px; width: 90px;">Модель</th>
+                                <th style="text-align: left; padding: 8px; width: 90px;">Банк</th>
+                                <th style="text-align: right; padding: 8px; width: 70px;">Цена</th>
+                                <th style="text-align: center; padding: 8px; width: 45px;">Ред.</th>
+                                <th style="text-align: center; padding: 8px; width: 45px;">Удал.</th>
                             </tr>
                         </thead>
                         <tbody id="partsPricesTableBody">
@@ -821,7 +829,7 @@
     </div>
 
     <!-- App Script logic -->
-    <script src="app.js?v=34.0"></script>
+    <script src="app.js?v=36.0"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>

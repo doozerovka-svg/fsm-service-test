@@ -2916,6 +2916,11 @@ function openPricesModal() {
     populateDropdown('newPartPriceBank', ['Все банки', ...db.banks], 'Все банки');
     populateDropdown('newPartPriceModel', ['Все модели', ...db.models], 'Все модели');
     
+    // Reset search filter and edit state
+    const searchInput = document.getElementById('searchPartPrice');
+    if (searchInput) searchInput.value = '';
+    cancelPartPriceEdit();
+    
     // Activate first tab button
     document.querySelectorAll('#pricesModal .segmented-control .segment-btn').forEach(btn => {
         btn.classList.remove('active');
@@ -3005,10 +3010,19 @@ function renderPartsPrices() {
     if (!tbody) return;
     
     let html = '';
-    const parts = db.prices.parts || [];
+    let parts = db.prices.parts || [];
+    const searchQuery = (document.getElementById('searchPartPrice')?.value || '').toLowerCase().trim();
+    
+    if (searchQuery) {
+        parts = parts.filter(p => 
+            p.name.toLowerCase().includes(searchQuery) ||
+            (p.model || 'Все модели').toLowerCase().includes(searchQuery) ||
+            p.bank.toLowerCase().includes(searchQuery)
+        );
+    }
     
     if (parts.length === 0) {
-        html = '<tr><td colspan="5" style="text-align: center; padding: 12px; color: var(--text-muted);">Прайс-лист запчастей пуст</td></tr>';
+        html = `<tr><td colspan="6" style="text-align: center; padding: 12px; color: var(--text-muted);">${searchQuery ? 'Ничего не найдено' : 'Прайс-лист запчастей пуст'}</td></tr>`;
     } else {
         // Sort parts by model, then bank, then name
         const sorted = [...parts].sort((a, b) => {
@@ -3029,6 +3043,9 @@ function renderPartsPrices() {
                     <td style="padding: 8px; color: var(--text-secondary);">${p.bank}</td>
                     <td style="padding: 8px; text-align: right; font-weight: 500;">${formatSeparated(p.price)} ${currency}</td>
                     <td style="padding: 6px; text-align: center;">
+                        <button class="btn-outline" onclick="editPartPrice(${p.id})" style="padding: 2px 6px; font-size: 11px; min-height: 24px; margin:0; border: 1px solid var(--border-color); color: var(--text-primary);">✏️</button>
+                    </td>
+                    <td style="padding: 6px; text-align: center;">
                         <button class="btn-danger" onclick="deletePartPrice(${p.id})" style="padding: 2px 6px; font-size: 11px; min-height: 24px; margin:0;">🗑️</button>
                     </td>
                 </tr>
@@ -3039,6 +3056,8 @@ function renderPartsPrices() {
 }
 
 function addPartPrice() {
+    const editingIdInput = document.getElementById('editingPartPriceId');
+    const editingIdVal = editingIdInput ? editingIdInput.value : '';
     const name = document.getElementById('newPartPriceName').value.trim();
     const bank = document.getElementById('newPartPriceBank').value || 'Все банки';
     const model = document.getElementById('newPartPriceModel').value || 'Все модели';
@@ -3056,27 +3075,91 @@ function addPartPrice() {
     }
     
     db.prices.parts = db.prices.parts || [];
-    db.prices.parts.push({
-        id: Date.now(),
-        name,
-        bank,
-        model,
-        price,
-        currency
-    });
+    
+    if (editingIdVal) {
+        // Editing mode
+        const id = parseInt(editingIdVal);
+        const pIdx = db.prices.parts.findIndex(p => p.id == id);
+        if (pIdx !== -1) {
+            db.prices.parts[pIdx] = {
+                id,
+                name,
+                bank,
+                model,
+                price,
+                currency
+            };
+            showToast('💾 Изменения в детали сохранены!');
+        }
+        cancelPartPriceEdit();
+    } else {
+        // Adding mode
+        db.prices.parts.push({
+            id: Date.now(),
+            name,
+            bank,
+            model,
+            price,
+            currency
+        });
+        showToast('✅ Деталь добавлена в прайс-лист!');
+        // Clear name and price values
+        document.getElementById('newPartPriceName').value = '';
+        document.getElementById('newPartPriceVal').value = '';
+    }
     
     renderPartsPrices();
-    
-    // Clear name and price values
-    document.getElementById('newPartPriceName').value = '';
-    document.getElementById('newPartPriceVal').value = '';
-    showToast('✅ Деталь добавлена в прайс-лист!');
 }
 
 function deletePartPrice(id) {
     db.prices.parts = (db.prices.parts || []).filter(p => p.id != id);
     renderPartsPrices();
     showToast('🗑️ Деталь удалена из прайс-листа');
+}
+
+function editPartPrice(id) {
+    const p = (db.prices.parts || []).find(x => x.id == id);
+    if (!p) return;
+    
+    document.getElementById('editingPartPriceId').value = p.id;
+    document.getElementById('newPartPriceName').value = p.name;
+    document.getElementById('newPartPriceVal').value = p.price;
+    document.getElementById('newPartPriceCurrency').value = p.currency || 'EUR';
+    
+    populateDropdown('newPartPriceBank', ['Все банки', ...db.banks], p.bank);
+    populateDropdown('newPartPriceModel', ['Все модели', ...db.models], p.model || 'Все модели');
+    
+    const addBtn = document.getElementById('btnAddPartPrice');
+    if (addBtn) {
+        addBtn.className = 'btn-success';
+        addBtn.innerHTML = '💾 Сохранить';
+    }
+    
+    const cancelBtn = document.getElementById('btnCancelPartPriceEdit');
+    if (cancelBtn) {
+        cancelBtn.style.display = 'inline-flex';
+    }
+}
+
+function cancelPartPriceEdit() {
+    document.getElementById('editingPartPriceId').value = '';
+    document.getElementById('newPartPriceName').value = '';
+    document.getElementById('newPartPriceVal').value = '';
+    document.getElementById('newPartPriceCurrency').value = 'EUR';
+    
+    populateDropdown('newPartPriceBank', ['Все банки', ...db.banks], 'Все банки');
+    populateDropdown('newPartPriceModel', ['Все модели', ...db.models], 'Все модели');
+    
+    const addBtn = document.getElementById('btnAddPartPrice');
+    if (addBtn) {
+        addBtn.className = 'btn-success';
+        addBtn.innerHTML = '➕ Добавить';
+    }
+    
+    const cancelBtn = document.getElementById('btnCancelPartPriceEdit');
+    if (cancelBtn) {
+        cancelBtn.style.display = 'none';
+    }
 }
 
 function savePricesSettings() {
@@ -3653,6 +3736,8 @@ window.openPricesModal = openPricesModal;
 window.switchPriceTab = switchPriceTab;
 window.addPartPrice = addPartPrice;
 window.deletePartPrice = deletePartPrice;
+window.editPartPrice = editPartPrice;
+window.cancelPartPriceEdit = cancelPartPriceEdit;
 window.savePricesSettings = savePricesSettings;
 window.openActsModal = openActsModal;
 window.renderActReport = renderActReport;
