@@ -754,7 +754,6 @@ function saveEditMachine() {
                 notes: `Серийный номер изменен с [${m.serial}] на [${newSerial}]`
             };
             db.history.unshift(hChange);
-            saveData('history/' + hChange.id, hChange);
         }
 
         // Check if location was updated - Add log
@@ -775,7 +774,6 @@ function saveEditMachine() {
                 notes: `Машина перемещена:\nОткуда: ${oldAddrText}\nКуда: ${newAddrText}`
             };
             db.history.unshift(hMove);
-            saveData('history/' + hMove.id, hMove);
         }
 
         m.addressId = newAddressId;
@@ -984,8 +982,6 @@ function saveService() {
     const oldSerial = m.serial;
     if (isReplace) {
         m.serial = replacementSerial;
-        // Save the updated machine object immediately
-        saveData('machines/' + m.id, m);
         
         const replaceLog = `Замена машинки. S/N изменен с [${oldSerial}] на [${replacementSerial}]`;
         notes = notes ? notes + '\n' + replaceLog : replaceLog;
@@ -1093,7 +1089,6 @@ function saveEditHistory() {
                 h.machineSerial = replacementSerial;
                 if (m) {
                     m.serial = replacementSerial;
-                    saveData('machines/' + m.id, m);
                 }
             } else if (!isReplace && m && h.machineSerial !== m.serial) {
                 h.machineSerial = m.serial;
