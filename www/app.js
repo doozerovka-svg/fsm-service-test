@@ -1951,12 +1951,20 @@ function renderDashboard() {
                 const percent = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
                 
                 let fillBarColor = 'var(--primary-color)';
-                if (percent === 100) {
-                    fillBarColor = 'linear-gradient(90deg, #10b981, #059669)';
-                } else if (percent > 0) {
-                    fillBarColor = 'linear-gradient(90deg, #3b82f6, #2563eb)';
+                if (stats.hasOverdue) {
+                    fillBarColor = 'linear-gradient(90deg, #f87171, #ef4444)';
+                } else if (stats.total > 0 && stats.completed >= stats.total) {
+                    fillBarColor = 'linear-gradient(90deg, #34d399, #10b981)';
+                } else if (stats.hasWarning) {
+                    fillBarColor = 'linear-gradient(90deg, #eab308, #ca8a04)';
                 } else {
-                    fillBarColor = '#d1d5db';
+                    if (percent === 100) {
+                        fillBarColor = 'linear-gradient(90deg, #10b981, #059669)';
+                    } else if (percent > 0) {
+                        fillBarColor = 'linear-gradient(90deg, #3b82f6, #2563eb)';
+                    } else {
+                        fillBarColor = '#d1d5db';
+                    }
                 }
                 
                 const statusText = isOnRequest 

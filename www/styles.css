@@ -2124,14 +2124,14 @@ body.dark .geo-proximity-btn.active {
 
 /* Status: Warning (Yellow) */
 .route-progress-card.status-warning {
-    background: rgba(245, 158, 11, 0.07) !important;
-    border-color: rgba(245, 158, 11, 0.2) !important;
+    background: rgba(234, 179, 8, 0.03) !important;
+    border-color: rgba(234, 179, 8, 0.12) !important;
 }
 .route-progress-card.status-warning .route-name {
-    color: #b45309 !important;
+    color: #854d0e !important;
 }
 .route-progress-card.status-warning .route-status-text {
-    color: #f59e0b !important;
+    color: #a16207 !important;
 }
 
 /* Dark Mode status overrides */
@@ -2158,14 +2158,14 @@ body.dark .route-progress-card.status-completed .route-status-text {
 }
 
 body.dark .route-progress-card.status-warning {
-    background: rgba(245, 158, 11, 0.12) !important;
-    border-color: rgba(245, 158, 11, 0.35) !important;
+    background: rgba(234, 179, 8, 0.06) !important;
+    border-color: rgba(234, 179, 8, 0.22) !important;
 }
 body.dark .route-progress-card.status-warning .route-name {
-    color: #fbbf24 !important;
+    color: #facc15 !important;
 }
 body.dark .route-progress-card.status-warning .route-status-text {
-    color: #f59e0b !important;
+    color: #eab308 !important;
 }
 
 
