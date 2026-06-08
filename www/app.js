@@ -170,6 +170,13 @@ document.addEventListener('DOMContentLoaded', () => {
     checkUserRole();
     renderAll();
     initializeFirebase();
+    // Initialize geo radius slider to saved value
+    const slider = document.getElementById('geoRadiusSlider');
+    const label  = document.getElementById('geoRadiusLabel');
+    if (slider && label) {
+        slider.value = geoProximityRadius;
+        label.innerText = geoProximityRadius >= 1000 ? (geoProximityRadius/1000).toFixed(1) + ' км' : geoProximityRadius + ' м';
+    }
 });
 
 // Event listeners to handle app resume / visibility change and sync time
@@ -442,6 +449,105 @@ async function receiveLocation(lat, lon) {
 
 // Bind to window to allow access globally
 window.receiveLocation = receiveLocation;
+
+// =========================================================================
+// PASSIVE GEO PROXIMITY TRACKING
+// =========================================================================
+let currentUserLat = null;
+let currentUserLon = null;
+let geoWatchId = null;
+let geoProximityEnabled = (localStorage.getItem('fsm_geo_proximity') === 'true');
+let geoProximityRadius = parseInt(localStorage.getItem('fsm_geo_radius') || '1000', 10); // metres
+
+// Geocoding cache: address text -> {lat, lon}
+const geocodeCache = {};
+
+/**
+ * Haversine distance in metres between two lat/lon points.
+ */
+function haversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000; // Earth radius in metres
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+/**
+ * Geocode an address string via Nominatim (returns { lat, lon } or null).
+ */
+async function geocodeAddress(address) {
+    if (!address) return null;
+    if (geocodeCache[address]) return geocodeCache[address];
+    try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&accept-language=ru`);
+        const data = await res.json();
+        if (data && data[0]) {
+            const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+            geocodeCache[address] = result;
+            return result;
+        }
+    } catch(e) { /* silent */ }
+    return null;
+}
+
+/**
+ * Start passive watchPosition that continuously updates user location.
+ */
+function startGeoWatch() {
+    if (geoWatchId !== null) return; // already watching
+    if (!navigator.geolocation) {
+        showToast('⚠️ Геолокация не поддерживается браузером');
+        return;
+    }
+    geoWatchId = navigator.geolocation.watchPosition(
+        (pos) => {
+            currentUserLat = pos.coords.latitude;
+            currentUserLon = pos.coords.longitude;
+            renderDashboard();
+        },
+        (err) => {
+            console.warn('Geo watch error:', err.message);
+            // Don't spam toasts; watchPosition errors are often temporary
+        },
+        { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
+    );
+}
+
+function stopGeoWatch() {
+    if (geoWatchId !== null) {
+        navigator.geolocation.clearWatch(geoWatchId);
+        geoWatchId = null;
+    }
+}
+
+/**
+ * Toggle geo-proximity filter on/off and update the button state.
+ */
+function toggleGeoProximity() {
+    geoProximityEnabled = !geoProximityEnabled;
+    localStorage.setItem('fsm_geo_proximity', geoProximityEnabled);
+    if (geoProximityEnabled) {
+        startGeoWatch();
+        showToast('📡 Фильтр по близости включён');
+    } else {
+        stopGeoWatch();
+        showToast('📡 Фильтр по близости выключен');
+    }
+    renderDashboard();
+}
+window.toggleGeoProximity = toggleGeoProximity;
+
+function setGeoRadius(r) {
+    geoProximityRadius = parseInt(r, 10);
+    localStorage.setItem('fsm_geo_radius', geoProximityRadius);
+    renderDashboard();
+}
+window.setGeoRadius = setGeoRadius;
+
+// Auto-start watch if feature was left enabled
+if (geoProximityEnabled) startGeoWatch();
 
 function openMapInKodular(query) {
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -1869,16 +1975,97 @@ function renderDashboard() {
         return serialA.localeCompare(serialB);
     });
 
+    // ---- Geo-proximity split ----
+    let nearbyList = filteredList;
+    let farList = [];
+
+    // Update geo-proximity button appearance
+    const geoBtn = document.getElementById('geoProximityBtn');
+    const geoRadiusRow = document.getElementById('geoRadiusRow');
+    if (geoBtn) {
+        if (geoProximityEnabled) {
+            geoBtn.classList.add('active');
+            geoBtn.title = `GPS фильтр вкл. (${geoProximityRadius >= 1000 ? (geoProximityRadius/1000).toFixed(1) + ' км' : geoProximityRadius + ' м'})`;
+        } else {
+            geoBtn.classList.remove('active');
+            geoBtn.title = 'Включить фильтр по близости GPS';
+        }
+    }
+    if (geoRadiusRow) geoRadiusRow.style.display = geoProximityEnabled ? 'flex' : 'none';
+
+    if (geoProximityEnabled && currentUserLat !== null && currentUserLon !== null) {
+        nearbyList = [];
+        farList = [];
+        filteredList.forEach(item => {
+            const addr = item.a ? (item.a.address || '') : '';
+            const cached = geocodeCache[addr];
+            if (cached) {
+                const dist = haversineDistance(currentUserLat, currentUserLon, cached.lat, cached.lon);
+                if (dist <= geoProximityRadius) {
+                    nearbyList.push({ ...item, _dist: dist });
+                } else {
+                    farList.push({ ...item, _dist: dist });
+                }
+            } else {
+                // Unknown distance — put in far, trigger background geocoding
+                farList.push(item);
+                if (addr) geocodeAddress(addr).then(() => renderDashboard());
+            }
+        });
+        // Sort nearby by distance
+        nearbyList.sort((a, b) => (a._dist || 0) - (b._dist || 0));
+    } else if (geoProximityEnabled && currentUserLat === null) {
+        // Waiting for GPS fix
+        container.innerHTML = `
+            <div style="text-align: center; padding: 45px 20px; color: var(--text-secondary);">
+                <div style="font-size: 36px; margin-bottom: 12px; animation: pulse 1.5s infinite;">📡</div>
+                <p style="font-size: 15px; font-weight: 600; margin-bottom: 6px;">Ожидание GPS...</p>
+                <p style="font-size: 13px; color: var(--text-muted);">Разрешите доступ к геолокации</p>
+                <button class="btn-outline" onclick="toggleGeoProximity()" style="margin-top:16px; font-size:13px;">Отключить фильтр</button>
+            </div>
+        `;
+        return;
+    }
+
     // Render flat list
-    if (filteredList.length === 0) {
+    if (nearbyList.length === 0 && farList.length === 0) {
         container.innerHTML = `
             <div style="text-align: center; padding: 45px 20px; color: var(--text-secondary);">
                 <p style="font-size: 14px; margin-bottom: 8px;">Нет машин в данном списке.</p>
                 ${searchVal !== '' || dashboardSelectedRoute ? '<p style="font-size: 12px; color: var(--text-muted)">Попробуйте сбросить фильтры или изменить поиск</p>' : ''}
             </div>
         `;
+    } else if (!geoProximityEnabled || farList.length === 0) {
+        // Normal flat render
+        container.innerHTML = nearbyList.map(item => getMachineCardHtml(item.mach, item.a, item.completedH1, item.targetH1, item.completedH2, item.targetH2, item.isCompleted, item.isOverdue, item.isPending)).join('');
     } else {
-        container.innerHTML = filteredList.map(item => getMachineCardHtml(item.mach, item.a, item.completedH1, item.targetH1, item.completedH2, item.targetH2, item.isCompleted, item.isOverdue, item.isPending)).join('');
+        // Split render: nearby + collapsible far section
+        const nearbyHtml = nearbyList.length > 0
+            ? nearbyList.map(item => getMachineCardHtml(item.mach, item.a, item.completedH1, item.targetH1, item.completedH2, item.targetH2, item.isCompleted, item.isOverdue, item.isPending)).join('')
+            : `<div style="text-align:center; padding: 24px; color: var(--text-muted); font-size: 13px;">📍 Нет машин поблизости (в радиусе ${geoProximityRadius >= 1000 ? (geoProximityRadius/1000).toFixed(1) + ' км' : geoProximityRadius + ' м'})</div>`;
+
+        const farHtml = farList.map(item => getMachineCardHtml(item.mach, item.a, item.completedH1, item.targetH1, item.completedH2, item.targetH2, item.isCompleted, item.isOverdue, item.isPending)).join('');
+
+        container.innerHTML = `
+            ${nearbyHtml}
+            <details class="far-machines-details" style="margin-top: 16px;">
+                <summary style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 14px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px; font-weight: 600; color: var(--text-secondary); list-style: none; outline: none;">
+                    <span style="font-size: 16px;">📍</span>
+                    <span>Другие машинки вне зоны (${farList.length})</span>
+                    <span style="margin-left: auto; font-size: 18px; transition: transform 0.2s;" class="far-chevron">▼</span>
+                </summary>
+                <div style="padding-top: 10px;">${farHtml}</div>
+            </details>
+        `;
+
+        // Chevron rotation for the far machines details
+        const det = container.querySelector('.far-machines-details');
+        if (det) {
+            det.addEventListener('toggle', () => {
+                const ch = det.querySelector('.far-chevron');
+                if (ch) ch.style.transform = det.open ? 'rotate(180deg)' : 'rotate(0deg)';
+            });
+        }
     }
 }
 

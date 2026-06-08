@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=41.0">
+    <link rel="stylesheet" href="styles.css?v=42.0">
 </head>
 <body>
 
@@ -98,12 +98,21 @@
                 </div>
             </div>
             
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; color: var(--text-secondary);">
                 <span style="font-weight: 500;">Сортировка:</span>
-                <div class="segmented-control" id="dashboardSortControl" style="margin: 0; max-width: 240px; height: 32px; padding: 2px;">
-                    <button class="segment-btn active" id="sortTab-address" onclick="setDashboardSort('address')" style="font-size: 11px; padding: 4px 8px; height: 28px;">📍 По адресу</button>
-                    <button class="segment-btn" id="sortTab-status" onclick="setDashboardSort('status')" style="font-size: 11px; padding: 4px 8px; height: 28px;">🚨 По статусу</button>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="segmented-control" id="dashboardSortControl" style="margin: 0; max-width: 240px; height: 32px; padding: 2px;">
+                        <button class="segment-btn active" id="sortTab-address" onclick="setDashboardSort('address')" style="font-size: 11px; padding: 4px 8px; height: 28px;">📍 По адресу</button>
+                        <button class="segment-btn" id="sortTab-status" onclick="setDashboardSort('status')" style="font-size: 11px; padding: 4px 8px; height: 28px;">🚨 По статусу</button>
+                    </div>
+                    <button id="geoProximityBtn" class="geo-proximity-btn" onclick="toggleGeoProximity()" title="Включить фильтр по близости GPS">📡</button>
                 </div>
+            </div>
+            <div id="geoRadiusRow" style="display: none; align-items: center; gap: 10px; margin-bottom: 10px; padding: 8px 12px; background: var(--card-bg); border: 1px solid var(--primary-color); border-radius: var(--radius-md); font-size: 12px; color: var(--text-secondary);">
+                <span>📡</span>
+                <span style="font-weight: 600; color: var(--primary-color);">Радиус поиска:</span>
+                <input type="range" id="geoRadiusSlider" min="200" max="10000" step="200" oninput="setGeoRadius(this.value); document.getElementById('geoRadiusLabel').innerText = this.value >= 1000 ? (this.value/1000).toFixed(1)+' км' : this.value+' м'" style="flex:1; accent-color: var(--primary-color);">
+                <span id="geoRadiusLabel" style="min-width: 48px; text-align:right; font-weight: 600;">1 км</span>
             </div>
             <div id="dashboardList" class="cards-list"></div>
         </section>
@@ -832,7 +841,7 @@
     </div>
 
     <!-- App Script logic -->
-    <script src="app.js?v=41.0"></script>
+    <script src="app.js?v=42.0"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>

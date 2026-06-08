@@ -2040,5 +2040,48 @@ body.dark .search-clear-btn:hover {
     color: #fff;
 }
 
+/* =========================================================================
+   GEO PROXIMITY BUTTON
+   ========================================================================= */
+.geo-proximity-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    background: var(--card-bg);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0;
+    transition: border-color var(--transition-quick), background var(--transition-quick), box-shadow var(--transition-quick);
+    flex-shrink: 0;
+}
+
+.geo-proximity-btn:hover {
+    border-color: var(--primary-color);
+    background: rgba(0, 86, 179, 0.08);
+}
+
+.geo-proximity-btn.active {
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.12);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+    animation: geo-pulse 2s infinite;
+}
+
+@keyframes geo-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25); }
+    50%       { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.08); }
+}
+
+body.dark .geo-proximity-btn {
+    background: var(--card-bg);
+}
+body.dark .geo-proximity-btn.active {
+    background: rgba(34, 197, 94, 0.15);
+}
 
 
