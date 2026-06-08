@@ -459,8 +459,82 @@ let geoWatchId = null;
 let geoProximityEnabled = (localStorage.getItem('fsm_geo_proximity') === 'true');
 let geoProximityRadius = parseInt(localStorage.getItem('fsm_geo_radius') || '1000', 10); // metres
 
-// Geocoding cache: address text -> {lat, lon}
-const geocodeCache = {};
+// Geocoding cache: address text -> {lat, lon} / {failed: true} / {pending: true}
+const geocodeCache = JSON.parse(localStorage.getItem('fsm_geocode_cache')) || {};
+// Clean up any stale pending entries on startup
+for (const key in geocodeCache) {
+    if (geocodeCache[key] && geocodeCache[key].pending) {
+        delete geocodeCache[key];
+    }
+}
+
+let renderDashboardTimeout = null;
+function throttleRenderDashboard() {
+    if (renderDashboardTimeout) return;
+    renderDashboardTimeout = setTimeout(() => {
+        renderDashboardTimeout = null;
+        renderDashboard();
+    }, 1500); // Max once every 1.5 seconds
+}
+
+const geocodeQueue = [];
+let isGeocodingQueueRunning = false;
+
+async function processGeocodeQueue() {
+    if (isGeocodingQueueRunning || geocodeQueue.length === 0) return;
+    isGeocodingQueueRunning = true;
+
+    while (geocodeQueue.length > 0) {
+        const { address, resolve } = geocodeQueue.shift();
+        
+        // Double check if already cached in the meantime
+        if (geocodeCache[address] && !geocodeCache[address].pending) {
+            resolve(geocodeCache[address]);
+            continue;
+        }
+        
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&accept-language=ru`);
+            const data = await res.json();
+            if (data && data[0]) {
+                const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+                geocodeCache[address] = result;
+                localStorage.setItem('fsm_geocode_cache', JSON.stringify(geocodeCache));
+                resolve(result);
+            } else {
+                geocodeCache[address] = { failed: true };
+                localStorage.setItem('fsm_geocode_cache', JSON.stringify(geocodeCache));
+                resolve(null);
+            }
+        } catch (e) {
+            console.warn("Geocoding failed for:", address, e);
+            geocodeCache[address] = { failed: true };
+            localStorage.setItem('fsm_geocode_cache', JSON.stringify(geocodeCache));
+            resolve(null);
+        }
+
+        // Wait 1 second before the next request to respect Nominatim usage policy
+        await new Promise(r => setTimeout(r, 1000));
+    }
+
+    isGeocodingQueueRunning = false;
+}
+
+function enqueueGeocode(address) {
+    if (!address) return Promise.resolve(null);
+    const cached = geocodeCache[address];
+    if (cached) {
+        return Promise.resolve(cached);
+    }
+
+    // Mark as pending immediately to avoid duplicate enqueuing
+    geocodeCache[address] = { pending: true };
+
+    return new Promise(resolve => {
+        geocodeQueue.push({ address, resolve });
+        processGeocodeQueue();
+    });
+}
 
 /**
  * Haversine distance in metres between two lat/lon points.
@@ -472,24 +546,6 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
     const dLon = toRad(lon2 - lon1);
     const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-/**
- * Geocode an address string via Nominatim (returns { lat, lon } or null).
- */
-async function geocodeAddress(address) {
-    if (!address) return null;
-    if (geocodeCache[address]) return geocodeCache[address];
-    try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&accept-language=ru`);
-        const data = await res.json();
-        if (data && data[0]) {
-            const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-            geocodeCache[address] = result;
-            return result;
-        }
-    } catch(e) { /* silent */ }
-    return null;
 }
 
 /**
@@ -505,7 +561,7 @@ function startGeoWatch() {
         (pos) => {
             currentUserLat = pos.coords.latitude;
             currentUserLon = pos.coords.longitude;
-            renderDashboard();
+            throttleRenderDashboard();
         },
         (err) => {
             console.warn('Geo watch error:', err.message);
@@ -518,6 +574,7 @@ function startGeoWatch() {
 function stopGeoWatch() {
     if (geoWatchId !== null) {
         navigator.geolocation.clearWatch(geoWatchId);
+
         geoWatchId = null;
     }
 }
@@ -1999,7 +2056,7 @@ function renderDashboard() {
         filteredList.forEach(item => {
             const addr = item.a ? (item.a.address || '') : '';
             const cached = geocodeCache[addr];
-            if (cached) {
+            if (cached && !cached.pending && !cached.failed) {
                 const dist = haversineDistance(currentUserLat, currentUserLon, cached.lat, cached.lon);
                 if (dist <= geoProximityRadius) {
                     nearbyList.push({ ...item, _dist: dist });
@@ -2007,9 +2064,15 @@ function renderDashboard() {
                     farList.push({ ...item, _dist: dist });
                 }
             } else {
-                // Unknown distance — put in far, trigger background geocoding
+                // Unknown distance or pending/failed - put in far list
                 farList.push(item);
-                if (addr) geocodeAddress(addr).then(() => renderDashboard());
+                if (addr && !cached) {
+                    enqueueGeocode(addr).then((res) => {
+                        if (res && !res.failed) {
+                            throttleRenderDashboard();
+                        }
+                    });
+                }
             }
         });
         // Sort nearby by distance
