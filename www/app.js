@@ -88,39 +88,22 @@ db.routes = db.routes || ["Маршрут 1 (Центр)", "Маршрут 2 (Б
 db.employees = db.employees || ["Инженер 1", "Инженер 2"];
 db.cities = db.cities || ["Кишинев", "Бельцы"];
 const defaultBpsParts = [
-    { id: 1001, name: "РУЧКА", bank: "Все банки", model: "BPS C1", price: 11.2, currency: "EUR" },
-    { id: 1002, name: "ПЕЧАТНАЯ ПЛАТА C1-F-IO", bank: "Все банки", model: "BPS C1", price: 177.31, currency: "EUR" },
-    { id: 1003, name: "ПЕЧАТНАЯ ПЛАТА C1-F-TUV", bank: "Все банки", model: "BPS C1", price: 75.48, currency: "EUR" },
-    { id: 1004, name: "МАГНИТНАЯ ГОЛОВКА HF-901-2", bank: "Все банки", model: "BPS C1", price: 65.55, currency: "EUR" },
-    { id: 1005, name: "ДАТЧИК ИЗОБРАЖЕНИЯ MC06H", bank: "Все банки", model: "BPS C1", price: 384.71, currency: "EUR" },
-    { id: 1006, name: "ШЛЕЙФ P1-A к CIS", bank: "Все банки", model: "BPS C1", price: 7.69, currency: "EUR" },
-    { id: 1007, name: "ШЛЕЙФ P3-S к MRS", bank: "Все банки", model: "BPS C1", price: 9.21, currency: "EUR" },
-    { id: 1008, name: "ШЛЕЙФ P4-MT0 к MT1", bank: "Все банки", model: "BPS C1", price: 9.87, currency: "EUR" },
-    { id: 1009, name: "ЖК-ДИСПЛЕЙ ST035QVTN03", bank: "Все банки", model: "BPS C1", price: 109.82, currency: "EUR" },
-    { id: 1010, name: "ОПТОВОЛОКНО LD02-01", bank: "Все банки", model: "BPS C1", price: 174.42, currency: "EUR" },
-    { id: 1011, name: "ЗУБЧАТЫЙ РЕМЕНЬ 168-3Mх5", bank: "Все банки", model: "BPS C1", price: 11.53, currency: "EUR" },
-    { id: 1012, name: "ЗУБЧАТЫЙ ШКИВ S3Mх18T", bank: "Все банки", model: "BPS C1", price: 5.92, currency: "EUR" },
-    { id: 1013, name: "ЗУБЧАТЫЙ ШКИВ D S3Mх18Tх8", bank: "Все банки", model: "BPS C1", price: 5.92, currency: "EUR" },
-    { id: 1014, name: "ПЕЧАТНАЯ ПЛАТА C1-F-BLD", bank: "Все банки", model: "BPS C1", price: 199.58, currency: "EUR" },
-    { id: 1015, name: "ПЕЧАТНАЯ ПЛАТА PW-SW", bank: "Все банки", model: "BPS C1", price: 52.5, currency: "EUR" },
-    { id: 1016, name: "МОТОР NC6000", bank: "Все банки", model: "BPS C1", price: 68.97, currency: "EUR" },
-    
-    { id: 1017, name: "РУЧКА", bank: "Все банки", model: "BPS C2", price: 11.2, currency: "EUR" },
-    { id: 1018, name: "ПЕЧАТНАЯ ПЛАТА C1-F-IO", bank: "Все банки", model: "BPS C2", price: 177.31, currency: "EUR" },
-    { id: 1019, name: "ПЕЧАТНАЯ ПЛАТА C1-F-TUV", bank: "Все банки", model: "BPS C2", price: 75.48, currency: "EUR" },
-    { id: 1020, name: "МАГНИТНАЯ ГОЛОВКА HF-901-2", bank: "Все банки", model: "BPS C2", price: 65.55, currency: "EUR" },
-    { id: 1021, name: "ДАТЧИК ИЗОБРАЖЕНИЯ MC06H", bank: "Все банки", model: "BPS C2", price: 384.71, currency: "EUR" },
-    { id: 1022, name: "ШЛЕЙФ P1-A к CIS", bank: "Все банки", model: "BPS C2", price: 7.69, currency: "EUR" },
-    { id: 1023, name: "ШЛЕЙФ P3-S к MRS", bank: "Все банки", model: "BPS C2", price: 9.21, currency: "EUR" },
-    { id: 1024, name: "ШЛЕЙФ P4-MT0 к MT1", bank: "Все банки", model: "BPS C2", price: 9.87, currency: "EUR" },
-    { id: 1025, name: "ЖК-ДИСПЛЕЙ ST035QVTN03", bank: "Все банки", model: "BPS C2", price: 109.82, currency: "EUR" },
-    { id: 1026, name: "ОПТОВОЛОКНО LD02-01", bank: "Все банки", model: "BPS C2", price: 174.42, currency: "EUR" },
-    { id: 1027, name: "ЗУБЧАТЫЙ РЕМЕНЬ 168-3Mх5", bank: "Все банки", model: "BPS C2", price: 11.53, currency: "EUR" },
-    { id: 1028, name: "ЗУБЧАТЫЙ ШКИВ S3Mх18T", bank: "Все банки", model: "BPS C2", price: 5.92, currency: "EUR" },
-    { id: 1029, name: "ЗУБЧАТЫЙ ШКИВ D S3Mх18Tх8", bank: "Все банки", model: "BPS C2", price: 5.92, currency: "EUR" },
-    { id: 1030, name: "ПЕЧАТНАЯ ПЛАТА C1-F-BLD", bank: "Все банки", model: "BPS C2", price: 199.58, currency: "EUR" },
-    { id: 1031, name: "ПЕЧАТНАЯ ПЛАТА PW-SW", bank: "Все банки", model: "BPS C2", price: 52.5, currency: "EUR" },
-    { id: 1032, name: "МОТОР NC6000", bank: "Все банки", model: "BPS C2", price: 68.97, currency: "EUR" }
+    { id: 1001, name: "РУЧКА", bank: "Все банки", model: "BPS C1 / C2", price: 11.2, currency: "EUR" },
+    { id: 1002, name: "ПЕЧАТНАЯ ПЛАТА C1-F-IO", bank: "Все банки", model: "BPS C1 / C2", price: 177.31, currency: "EUR" },
+    { id: 1003, name: "ПЕЧАТНАЯ ПЛАТА C1-F-TUV", bank: "Все банки", model: "BPS C1 / C2", price: 75.48, currency: "EUR" },
+    { id: 1004, name: "МАГНИТНАЯ ГОЛОВКА HF-901-2", bank: "Все банки", model: "BPS C1 / C2", price: 65.55, currency: "EUR" },
+    { id: 1005, name: "ДАТЧИК ИЗОБРАЖЕНИЯ MC06H", bank: "Все банки", model: "BPS C1 / C2", price: 384.71, currency: "EUR" },
+    { id: 1006, name: "ШЛЕЙФ P1-A к CIS", bank: "Все банки", model: "BPS C1 / C2", price: 7.69, currency: "EUR" },
+    { id: 1007, name: "ШЛЕЙФ P3-S к MRS", bank: "Все банки", model: "BPS C1 / C2", price: 9.21, currency: "EUR" },
+    { id: 1008, name: "ШЛЕЙФ P4-MT0 к MT1", bank: "Все банки", model: "BPS C1 / C2", price: 9.87, currency: "EUR" },
+    { id: 1009, name: "ЖК-ДИСПЛЕЙ ST035QVTN03", bank: "Все банки", model: "BPS C1 / C2", price: 109.82, currency: "EUR" },
+    { id: 1010, name: "ОПТОВОЛОКНО LD02-01", bank: "Все банки", model: "BPS C1 / C2", price: 174.42, currency: "EUR" },
+    { id: 1011, name: "ЗУБЧАТЫЙ РЕМЕНЬ 168-3Mх5", bank: "Все банки", model: "BPS C1 / C2", price: 11.53, currency: "EUR" },
+    { id: 1012, name: "ЗУБЧАТЫЙ ШКИВ S3Mх18T", bank: "Все банки", model: "BPS C1 / C2", price: 5.92, currency: "EUR" },
+    { id: 1013, name: "ЗУБЧАТЫЙ ШКИВ D S3Mх18Tх8", bank: "Все банки", model: "BPS C1 / C2", price: 5.92, currency: "EUR" },
+    { id: 1014, name: "ПЕЧАТНАЯ ПЛАТА C1-F-BLD", bank: "Все банки", model: "BPS C1 / C2", price: 199.58, currency: "EUR" },
+    { id: 1015, name: "ПЕЧАТНАЯ ПЛАТА PW-SW", bank: "Все банки", model: "BPS C1 / C2", price: 52.5, currency: "EUR" },
+    { id: 1016, name: "МОТОР NC6000", bank: "Все банки", model: "BPS C1 / C2", price: 68.97, currency: "EUR" }
 ];
 
 db.addresses = db.addresses || [];
@@ -308,8 +291,18 @@ function initializeFirebase() {
                 db.prices.maintenance = db.prices.maintenance || {};
                 db.prices.cities = db.prices.cities || {};
                 db.prices.parts = ensureArray(db.prices.parts);
-                if (db.prices.parts.length === 0) {
-                    db.prices.parts = [...defaultBpsParts];
+                
+                // Migrate legacy/duplicate/incorrect BPS parts to unified BPS C1 / C2 parts
+                const hasOldBpsParts = db.prices.parts.some(p => p.model === "BPS C1" || p.model === "BPS C2" || p.model === "В1" || p.model === "B1" || (p.id >= 1017 && p.id <= 1032));
+                const needsBpsMigration = hasOldBpsParts || db.prices.parts.length === 0;
+                
+                if (needsBpsMigration) {
+                    console.log("Migrating BPS parts to shared C1/C2 model.");
+                    db.prices.parts = db.prices.parts.filter(p => !(p.id >= 1001 && p.id <= 1032) && p.model !== "BPS C1" && p.model !== "BPS C2" && p.model !== "В1" && p.model !== "B1");
+                    db.prices.parts.push(...defaultBpsParts);
+                    setTimeout(() => {
+                        saveData();
+                    }, 500);
                 }
                 // Convert arrays/objects from Firebase safely
                 db.models = ensureArray(db.models);
