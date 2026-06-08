@@ -1998,5 +1998,47 @@ body.dark .report-table tbody tr:nth-child(even) {
     }
 }
 
+/* Search field wrapper with a clear cross button */
+.search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.search-wrapper input {
+    width: 100% !important;
+    padding-right: 36px !important; /* reserve space for cross */
+}
+
+.search-clear-btn {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: none;
+    padding: 0;
+    line-height: 1;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    width: 24px;
+    border-radius: 50%;
+    transition: background-color var(--transition-quick), color var(--transition-quick);
+}
+
+.search-clear-btn:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: var(--text-primary);
+}
+
+body.dark .search-clear-btn:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
 
 

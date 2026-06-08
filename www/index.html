@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=40.0">
+    <link rel="stylesheet" href="styles.css?v=41.0">
 </head>
 <body>
 
@@ -92,7 +92,10 @@
             </div>
             
             <div class="form-group" style="margin-bottom: 8px;">
-                <input type="text" id="dashboardSearch" placeholder="🔍 Поиск по чек-листу (модель, S/N, банк, адрес)..." oninput="renderDashboard()" style="margin-bottom: 0; padding: 10px; font-size: 15px; width: 100%; box-sizing: border-box;">
+                <div class="search-wrapper">
+                    <input type="text" id="dashboardSearch" placeholder="🔍 Поиск по чек-листу (модель, S/N, банк, адрес)..." oninput="handleDashboardSearchInput()" style="margin-bottom: 0; padding: 10px; font-size: 15px; width: 100%; box-sizing: border-box;">
+                    <button type="button" id="clearDashboardSearch" class="search-clear-btn" onclick="clearDashboardSearch()">×</button>
+                </div>
             </div>
             
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary);">
@@ -829,7 +832,7 @@
     </div>
 
     <!-- App Script logic -->
-    <script src="app.js?v=40.0"></script>
+    <script src="app.js?v=41.0"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>

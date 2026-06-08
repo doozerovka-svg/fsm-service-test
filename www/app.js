@@ -1395,6 +1395,29 @@ function setDashboardPeriod(period) {
 }
 window.setDashboardPeriod = setDashboardPeriod;
 
+function handleDashboardSearchInput() {
+    const searchVal = document.getElementById('dashboardSearch').value;
+    const clearBtn = document.getElementById('clearDashboardSearch');
+    if (clearBtn) {
+        clearBtn.style.display = searchVal ? 'flex' : 'none';
+    }
+    renderDashboard();
+}
+window.handleDashboardSearchInput = handleDashboardSearchInput;
+
+function clearDashboardSearch() {
+    const input = document.getElementById('dashboardSearch');
+    if (input) {
+        input.value = '';
+    }
+    const clearBtn = document.getElementById('clearDashboardSearch');
+    if (clearBtn) {
+        clearBtn.style.display = 'none';
+    }
+    renderDashboard();
+}
+window.clearDashboardSearch = clearDashboardSearch;
+
 function toggleRouteFilter(routeName) {
     if (dashboardSelectedRoute === routeName) {
         dashboardSelectedRoute = null;
@@ -1563,6 +1586,12 @@ function renderDashboard() {
     }
     
     const searchInput = document.getElementById('dashboardSearch');
+    if (searchInput) {
+        const clearBtn = document.getElementById('clearDashboardSearch');
+        if (clearBtn) {
+            clearBtn.style.display = searchInput.value ? 'flex' : 'none';
+        }
+    }
     const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
     
     const allList = [];
