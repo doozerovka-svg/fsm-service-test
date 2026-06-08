@@ -2084,4 +2084,88 @@ body.dark .geo-proximity-btn.active {
     background: rgba(34, 197, 94, 0.15);
 }
 
+/* =========================================================================
+   ROUTE PROGRESS CARD STATUS STYLES
+   ========================================================================= */
+.route-progress-card {
+    background: rgba(0, 86, 179, 0.03);
+    border: 1px solid var(--border-color);
+}
+.route-progress-card .route-name {
+    color: var(--text-primary);
+}
+.route-progress-card .route-status-text {
+    color: var(--primary-color);
+}
+
+/* Status: Overdue (Red) */
+.route-progress-card.status-overdue {
+    background: rgba(239, 68, 68, 0.07) !important;
+    border-color: rgba(239, 68, 68, 0.2) !important;
+}
+.route-progress-card.status-overdue .route-name {
+    color: #b91c1c !important;
+}
+.route-progress-card.status-overdue .route-status-text {
+    color: #ef4444 !important;
+}
+
+/* Status: Completed (Green) */
+.route-progress-card.status-completed {
+    background: rgba(16, 185, 129, 0.07) !important;
+    border-color: rgba(16, 185, 129, 0.2) !important;
+}
+.route-progress-card.status-completed .route-name {
+    color: #047857 !important;
+}
+.route-progress-card.status-completed .route-status-text {
+    color: #10b981 !important;
+}
+
+/* Status: Warning (Yellow) */
+.route-progress-card.status-warning {
+    background: rgba(245, 158, 11, 0.07) !important;
+    border-color: rgba(245, 158, 11, 0.2) !important;
+}
+.route-progress-card.status-warning .route-name {
+    color: #b45309 !important;
+}
+.route-progress-card.status-warning .route-status-text {
+    color: #f59e0b !important;
+}
+
+/* Dark Mode status overrides */
+body.dark .route-progress-card.status-overdue {
+    background: rgba(239, 68, 68, 0.12) !important;
+    border-color: rgba(239, 68, 68, 0.35) !important;
+}
+body.dark .route-progress-card.status-overdue .route-name {
+    color: #f87171 !important;
+}
+body.dark .route-progress-card.status-overdue .route-status-text {
+    color: #ef4444 !important;
+}
+
+body.dark .route-progress-card.status-completed {
+    background: rgba(16, 185, 129, 0.12) !important;
+    border-color: rgba(16, 185, 129, 0.35) !important;
+}
+body.dark .route-progress-card.status-completed .route-name {
+    color: #34d399 !important;
+}
+body.dark .route-progress-card.status-completed .route-status-text {
+    color: #10b981 !important;
+}
+
+body.dark .route-progress-card.status-warning {
+    background: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.35) !important;
+}
+body.dark .route-progress-card.status-warning .route-name {
+    color: #fbbf24 !important;
+}
+body.dark .route-progress-card.status-warning .route-status-text {
+    color: #f59e0b !important;
+}
+
 

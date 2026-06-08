@@ -1777,10 +1777,10 @@ function renderDashboard() {
     
     // Group progress stats by route
     const routeStats = {
-        'Без маршрута': { total: 0, completed: 0, hasMachines: false, hasScheduled: false }
+        'Без маршрута': { total: 0, completed: 0, hasMachines: false, hasScheduled: false, hasOverdue: false, hasWarning: false }
     };
     db.routes.forEach(r => {
-        routeStats[r] = { total: 0, completed: 0, hasMachines: false, hasScheduled: false };
+        routeStats[r] = { total: 0, completed: 0, hasMachines: false, hasScheduled: false, hasOverdue: false, hasWarning: false };
     });
     
     db.machines.forEach(mach => {
@@ -1858,14 +1858,39 @@ function renderDashboard() {
             }
         }
         
+        let hasWarning = false;
+        if (mach.freq > 0) {
+            const machineHistory = db.history.filter(h => h.machineId == mach.id && isActualService(h));
+            let lastServiceDate = null;
+            machineHistory.forEach(h => {
+                const d = new Date(h.date);
+                if (!isNaN(d.getTime())) {
+                    if (!lastServiceDate || d > lastServiceDate) {
+                        lastServiceDate = d;
+                    }
+                }
+            });
+            const timeSinceLast = lastServiceDate ? (now.getTime() - lastServiceDate.getTime()) : Infinity;
+            const oneAndHalfWeeksMs = 1.5 * 7 * 24 * 60 * 60 * 1000;
+            if (timeSinceLast >= oneAndHalfWeeksMs && !isCompleted) {
+                hasWarning = true;
+            }
+        }
+        
         // Track stats for progress bars (planned tasks vs completed tasks)
         const routeName = a ? a.route || 'Без маршрута' : 'Без маршрута';
         if (!routeStats[routeName]) {
-            routeStats[routeName] = { total: 0, completed: 0, hasMachines: false, hasScheduled: false };
+            routeStats[routeName] = { total: 0, completed: 0, hasMachines: false, hasScheduled: false, hasOverdue: false, hasWarning: false };
         }
         routeStats[routeName].hasMachines = true;
         if (mach.freq > 0) {
             routeStats[routeName].hasScheduled = true;
+        }
+        if (isOverdue) {
+            routeStats[routeName].hasOverdue = true;
+        }
+        if (hasWarning) {
+            routeStats[routeName].hasWarning = true;
         }
         
         if (F > 0) {
@@ -1937,18 +1962,31 @@ function renderDashboard() {
                 const statusText = isOnRequest 
                     ? `По запросу` 
                     : `${percent}% (${stats.completed}/${stats.total})`;
-                const statusColor = isOnRequest
-                    ? 'var(--text-secondary)'
-                    : (percent === 100 ? 'var(--success-color)' : 'var(--primary-color)');
+                
+                let statusColor = 'var(--primary-color)';
+                if (isOnRequest) {
+                    statusColor = 'var(--text-secondary)';
+                } else if (percent === 100) {
+                    statusColor = 'var(--success-color)';
+                }
+                
+                let statusClass = '';
+                if (stats.hasOverdue) {
+                    statusClass = 'status-overdue';
+                } else if (stats.total > 0 && stats.completed >= stats.total) {
+                    statusClass = 'status-completed';
+                } else if (stats.hasWarning) {
+                    statusClass = 'status-warning';
+                }
                 
                 const isActiveFilter = dashboardSelectedRoute === routeName;
                 return `
-                    <div class="route-progress-card ${isActiveFilter ? 'active-filter' : ''}" 
+                    <div class="route-progress-card ${statusClass} ${isActiveFilter ? 'active-filter' : ''}" 
                          onclick="toggleRouteFilter('${routeName.replace(/'/g, "\\'")}')"
-                         style="background: rgba(0, 86, 179, 0.03); border: 1px solid var(--border-color); padding: 8px 10px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: center; min-height: 48px; cursor: pointer; transition: var(--transition-quick);">
+                         style="padding: 8px 10px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: center; min-height: 48px; cursor: pointer; transition: var(--transition-quick);">
                         <div style="display:flex; justify-content:space-between; margin-bottom: ${isOnRequest ? '0' : '6px'}; font-size:11px; font-weight:600; gap: 4px;">
-                            <span style="color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex: 1;" title="${routeName}">${routeName}</span>
-                            <span style="color:${statusColor}; white-space: nowrap;">${statusText}</span>
+                            <span class="route-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex: 1;" title="${routeName}">${routeName}</span>
+                            <span class="route-status-text" style="color:${statusColor}; white-space: nowrap;">${statusText}</span>
                         </div>
                         ${isOnRequest ? '' : `
                         <div style="background: rgba(0,0,0,0.06); height: 5px; border-radius: 3px; overflow: hidden; position: relative;">
