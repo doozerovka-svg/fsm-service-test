@@ -1958,7 +1958,7 @@ body.dark .report-table tbody tr:nth-child(even) {
         padding: 0 !important;
         margin: 0 !important;
     }
-    header, nav, .bottom-nav, .modal-backdrop, button, .close-btn, #tab-dashboard, #tab-addresses, #tab-history, #tab-settings {
+    header, nav, .bottom-nav, .modal-backdrop, button, .close-btn, #tab-dashboard, #tab-addresses, #tab-history, #tab-problems, #tab-settings {
         display: none !important;
     }
     #actsModal {

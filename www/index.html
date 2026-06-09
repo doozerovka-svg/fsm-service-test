@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=45.0">
+    <link rel="stylesheet" href="styles.css?v=46.0">
 </head>
 <body>
 
@@ -196,6 +196,18 @@
             </div>
 
             <div id="historyList" class="timeline-container"></div>
+        </section>
+
+        <!-- Вкладка: Проблемы -->
+        <section id="tab-problems" class="tab-content">
+            <div class="section-header">
+                <h3>⚠️ Проблемы и поломки</h3>
+                <div class="search-wrapper" style="margin-bottom: 8px;">
+                    <input type="text" id="problemsSearch" placeholder="🔍 Поиск по проблемам..." oninput="renderProblems()" style="margin-bottom: 0;">
+                </div>
+            </div>
+            
+            <div id="problemsList" class="cards-list"></div>
         </section>
 
         <!-- Вкладка: Настройки -->
@@ -410,6 +422,11 @@
             <div class="form-group">
                 <label for="detMachFreq">Кол-во ТО в месяц (0 = по запросу)</label>
                 <input type="number" id="detMachFreq" min="0" max="10" class="custom-input">
+            </div>
+            
+            <div class="form-group">
+                <label for="detMachProblem">Заметка / Неисправность (оставьте пустым, если исправна)</label>
+                <input type="text" id="detMachProblem" placeholder="Введите информацию о неисправности..." class="custom-input">
             </div>
             
             <div class="characteristics-box">
@@ -804,6 +821,10 @@
             <span class="nav-icon">📅</span>
             <span class="nav-label">История</span>
         </button>
+        <button class="nav-btn" onclick="switchTab('tab-problems', this)">
+            <span class="nav-icon">⚠️</span>
+            <span class="nav-label">Проблемы</span>
+        </button>
         <button class="nav-btn" onclick="switchTab('tab-settings', this)">
             <span class="nav-icon">⚙️</span>
             <span class="nav-label">Настройки</span>
@@ -841,7 +862,7 @@
     </div>
 
     <!-- App Script logic -->
-    <script src="app.js?v=45.0"></script>
+    <script src="app.js?v=46.0"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>

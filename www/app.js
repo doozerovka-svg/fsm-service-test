@@ -850,6 +850,7 @@ function saveNewMachine() {
         inv, 
         freq, 
         employee,
+        problem: "",
         characteristics: [] 
     };
     db.machines.push(newMachine);
@@ -876,6 +877,7 @@ function openMachineDetails(machineId) {
     document.getElementById('detMachSerial').value = formatSeparated(m.serial);
     document.getElementById('detMachInv').value = formatSeparated(m.inv || '');
     document.getElementById('detMachFreq').value = m.freq;
+    document.getElementById('detMachProblem').value = m.problem || '';
     
     renderCharacteristicsList(m.id);
     renderMachineHistory(m.id, 'detMachHistoryList');
@@ -937,6 +939,7 @@ function saveEditMachine() {
         m.serial = newSerial;
         m.inv = document.getElementById('detMachInv').value.replace(/\s/g, '');
         m.employee = document.getElementById('detMachEmployee').value;
+        m.problem = document.getElementById('detMachProblem').value.trim();
         
         const freqVal = parseInt(document.getElementById('detMachFreq').value);
         m.freq = isNaN(freqVal) ? 1 : freqVal;
@@ -1162,6 +1165,7 @@ function saveService() {
         tasks, 
         notes 
     };
+    m.problem = ""; // Clear active problem on service
     db.history.unshift(newRecord);
     
     saveData('history/' + newRecord.id, newRecord);
@@ -1486,6 +1490,8 @@ function renderAll() {
         renderAddresses();
     } else if (id === 'tab-history') {
         renderHistory();
+    } else if (id === 'tab-problems') {
+        renderProblems();
     } else if (id === 'tab-settings') {
         renderSettings();
     }
@@ -1685,6 +1691,7 @@ function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH
                 <div style="flex:1;">
                     <div style="font-size: 15px; font-weight:bold; color:var(--text-primary); margin-bottom: 4px;">📠 ${mach.model}</div>
                     <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 6px;">S/N: <strong>${formatSeparated(mach.serial)}</strong>${mach.inv ? ` | Inv: <strong>${formatSeparated(mach.inv)}</strong>` : ''}</div>
+                    ${mach.problem ? `<div style="color: var(--danger-color); font-size: 11px; font-weight: 600; margin-top: -2px; margin-bottom: 6px;">⚠️ ${mach.problem}</div>` : ''}
                     <div style="font-size:13px; color:var(--text-secondary); margin-bottom: 2px; display:flex; align-items:center; gap:4px;">📍 ${addrText}</div>
                     <div style="font-size:11px; color:var(--text-muted); display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;">
                         <span>🏙️ ${cityText}</span>
@@ -2232,6 +2239,7 @@ function renderAddresses() {
                             <div class="machine-pill-info">
                                 <span class="machine-model">${m.model}</span>
                                 <span class="machine-sn">S/N: ${formatSeparated(m.serial)} ${m.inv ? ' | Inv: ' + formatSeparated(m.inv) : ''}${m.employee ? ' | Отв: ' + m.employee : ''}</span>
+                                ${m.problem ? `<div style="color: var(--danger-color); font-size: 11px; font-weight: 600; margin-top: 3px;">⚠️ ${m.problem}</div>` : ''}
                             </div>
                             <span class="badge info" style="padding: 2px 8px; font-size:10px;">${m.freq} ТО/мес</span>
                         </div>
@@ -2878,11 +2886,88 @@ function importDatabase(input) {
 // EMERGENCY REPAIR INCIDENT LOG
 // =========================================================================
 function openProblemModal(machineId) {
-    openServiceModal(machineId);
-    document.getElementById('modalTitle').innerText = `⚠️ Запись ремонта / Поломки: ${db.machines.find(m => m.id == machineId).model}`;
-    document.getElementById('modalNotes').placeholder = "Опишите неисправность или выполненный ремонт...";
-    document.getElementById('modalNotes').focus();
+    editMachineProblem(machineId);
 }
+
+function editMachineProblem(machineId) {
+    const m = db.machines.find(x => x.id == machineId);
+    if (!m) return;
+    customPrompt("Введите / отредактируйте неисправность машины:", m.problem || "", (newVal) => {
+        if (newVal !== null) {
+            m.problem = newVal.trim();
+            saveData('machines/' + m.id, m);
+            showToast('✅ Неисправность машины сохранена!');
+        }
+    });
+}
+
+function clearMachineProblem(machineId) {
+    const m = db.machines.find(x => x.id == machineId);
+    if (!m) return;
+    doubleConfirm(`СНЯТЬ неисправность с машины ${m.model} (S/N: ${m.serial})`, () => {
+        m.problem = "";
+        saveData('machines/' + m.id, m);
+        showToast('✅ Проблема успешно снята!');
+    });
+}
+
+function renderProblems() {
+    const container = document.getElementById('problemsList');
+    if (!container) return;
+    
+    const searchVal = document.getElementById('problemsSearch') ? document.getElementById('problemsSearch').value.toLowerCase().trim() : '';
+    
+    const problemMachines = db.machines.filter(m => m.problem && m.problem.trim() !== '');
+    
+    const filtered = problemMachines.filter(m => {
+        const a = db.addresses.find(addr => addr.id == m.addressId);
+        const searchString = `${m.model} ${m.serial} ${m.inv || ''} ${m.employee || ''} ${m.problem} ${a ? a.bank : ''} ${a ? a.address : ''} ${a ? a.city || 'Кишинев' : ''}`.toLowerCase();
+        return searchVal === '' || searchString.includes(searchVal);
+    });
+    
+    if (filtered.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                <p style="font-size: 15px; margin-bottom: 12px;">🔴 Активные проблемы не найдены.</p>
+                <p style="font-size: 13px; color: var(--text-muted)">Все машинки работают в штатном режиме.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = filtered.map(m => {
+        const a = db.addresses.find(addr => addr.id == m.addressId);
+        const addrText = a ? `${a.bank}, ${a.address}` : 'Адрес удален';
+        const cityText = a ? a.city || 'Кишинев' : 'Неизвестно';
+        const routeText = a ? a.route || 'Без маршрута' : 'Без маршрута';
+        
+        return `
+            <div class="card glass-card" style="margin-bottom: 12px; padding: 15px; border-left: 5px solid var(--danger-color);">
+                <div style="font-size: 15px; font-weight:bold; color:var(--text-primary); margin-bottom: 4px;">📠 ${m.model}</div>
+                <div style="font-size:12px; color:var(--text-secondary); margin-bottom: 6px;">S/N: <strong>${formatSeparated(m.serial)}</strong>${m.inv ? ` | Inv: <strong>${formatSeparated(m.inv)}</strong>` : ''}</div>
+                <div style="font-size:13px; color:var(--text-secondary); margin-bottom: 8px;">📍 ${addrText}</div>
+                
+                <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-sm); padding: 10px; margin-bottom: 12px;">
+                    <div style="font-size: 11px; font-weight: 600; color: var(--danger-color); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px;">Описание неисправности:</div>
+                    <div style="font-size: 13px; color: var(--text-primary); font-weight: 500; white-space: pre-wrap;">${m.problem}</div>
+                </div>
+
+                <div style="font-size:11px; color:var(--text-muted); display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 12px;">
+                    <span>🏙️ ${cityText}</span>
+                    <span>🚗 ${routeText}</span>
+                    ${m.employee ? `<span>👤 Отв: ${m.employee}</span>` : ''}
+                </div>
+                
+                <div style="display:flex; gap:8px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                    <button class="btn-success" onclick="openServiceModal(${m.id})" style="flex:2; font-size:12px; padding:6px 10px; min-height: 34px; font-weight: 600; margin: 0;">🛠️ Обслужить / Исправить</button>
+                    <button class="btn-outline tooltip" onclick="editMachineProblem(${m.id})" title="Редактировать заметку" style="flex:1; font-size:12px; padding:6px 10px; min-height: 34px; max-width: 44px; margin: 0; display:flex; align-items:center; justify-content:center;">✏️</button>
+                    <button class="btn-danger tooltip" onclick="clearMachineProblem(${m.id})" title="Очистить проблему" style="flex:1; font-size:12px; padding:6px 10px; min-height: 34px; max-width: 44px; margin: 0; display:flex; align-items:center; justify-content:center;">❌</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
 
 // =========================================================================
 // HISTORY FILTERING & MASS VERIFICATION STATE
@@ -2929,6 +3014,9 @@ function verifyAllForDay(dayStr) {
 window.exportDatabase = exportDatabase;
 window.importDatabase = importDatabase;
 window.openProblemModal = openProblemModal;
+window.editMachineProblem = editMachineProblem;
+window.clearMachineProblem = clearMachineProblem;
+window.renderProblems = renderProblems;
 window.setHistoryFilter = setHistoryFilter;
 window.verifyAllForDay = verifyAllForDay;
 window.triggerHapticFeedback = triggerHapticFeedback;
