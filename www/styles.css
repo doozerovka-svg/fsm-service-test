@@ -2396,5 +2396,148 @@ body.dark .simple-part-row {
     text-align: center;
 }
 
+/* Helper class toggles to hide/show elements based on active mode */
+.simple-mode-only {
+    display: none !important;
+}
+body.simple-mode .simple-mode-only {
+    display: block !important;
+}
+body.simple-mode span.simple-mode-only,
+body.simple-mode label.simple-mode-only {
+    display: inline-block !important;
+}
+body.simple-mode div.simple-mode-only.wizard-choice-grid {
+    display: flex !important;
+}
+body.simple-mode div.simple-mode-only.simple-numpad {
+    display: grid !important;
+}
+body.simple-mode div.simple-mode-only.wizard-navigation {
+    display: flex !important;
+}
+
+body.simple-mode .standard-mode-only {
+    display: none !important;
+}
+
+/* Service step display styles for standard and simple modes */
+body.simple-mode .service-step {
+    display: none;
+}
+body.simple-mode .service-step.active-step {
+    display: block;
+    animation: fadeIn 0.25s ease-out;
+}
+
+body:not(.simple-mode) .service-step {
+    display: block !important;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 20px;
+}
+body:not(.simple-mode) .service-step:last-of-type {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+}
+
+/* Wizard navigation panel layout */
+.wizard-navigation {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+/* Align and style parts picker grid */
+.simple-parts-picker {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 8px;
+    margin-bottom: 12px;
+}
+
+/* Keep round increment buttons properly sized in simple mode */
+body.simple-mode button.simple-part-qty-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-width: 44px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    font-size: 24px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Dark mode compatibility for wizard choice cards */
+body.dark .wizard-choice-card {
+    background: #1e293b;
+    border-color: #334155;
+    color: #f8fafc;
+}
+body.dark .wizard-choice-card:hover {
+    border-color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.02);
+}
+body.dark .wizard-choice-card.selected {
+    border-color: var(--success-color);
+    background: rgba(40, 167, 69, 0.1);
+}
+
+/* Dark mode compatibility for numpad keyboard */
+body.dark .numpad-key {
+    background: #334155;
+    border-color: #475569;
+    color: #f8fafc;
+}
+body.dark .numpad-key:active {
+    background: #475569;
+}
+body.dark .numpad-key.numpad-clear {
+    background: #7f1d1d;
+    border-color: #991b1b;
+    color: #fecaca;
+}
+body.dark .numpad-key.numpad-clear:active {
+    background: #991b1b;
+}
+body.dark .numpad-key.numpad-backspace {
+    background: #78350f;
+    border-color: #92400e;
+    color: #fef3c7;
+}
+body.dark .numpad-key.numpad-backspace:active {
+    background: #92400e;
+}
+
+/* Dark mode compatibility for simple parts picker controls */
+body.dark .simple-part-qty-btn {
+    background: #475569;
+    color: #f8fafc;
+}
+body.dark .simple-part-qty-btn:active {
+    background: #64748b;
+}
+
+/* Restrict sizing of control/delete buttons inside list containers in simple mode */
+body.simple-mode #modalPartsSelectedList button,
+body.simple-mode #prevServiceHistoryList button,
+body.simple-mode #detMachHistoryList button {
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 4px 8px !important;
+    font-size: 14px !important;
+    width: auto !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+
 
 

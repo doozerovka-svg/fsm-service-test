@@ -4230,10 +4230,26 @@ function toggleSimpleMode(enabled, showToastAlert = true) {
         dashboardGpsAddressFilter = null;
     }
     
+    // Update active service modal if open
+    const serviceModal = document.getElementById('serviceModal');
+    if (serviceModal && serviceModal.style.display === 'flex') {
+        renderWizardStep();
+        syncWizardChoiceCards();
+        const machineId = document.getElementById('modalMachineId').value;
+        if (machineId) {
+            const m = db.machines.find(x => x.id == machineId);
+            const a = m ? db.addresses.find(x => x.id == m.addressId) : null;
+            if (m && a) {
+                renderSimplePartsPicker(m.model, a.bank);
+            }
+        }
+    }
+    
     // Rerender all tabs to reflect layout changes
     renderAll();
 }
 window.toggleSimpleMode = toggleSimpleMode;
+
 
 function renderGpsAssistant() {
     const container = document.getElementById('gpsAssistantContainer');
