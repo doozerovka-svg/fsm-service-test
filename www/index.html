@@ -53,7 +53,11 @@
             <span class="logo-icon">🛠️</span>
             <span class="logo-text">Сервис Машин</span>
         </div>
-        <div style="display:flex; align-items:center; gap:8px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <label class="simple-mode-header-toggle" style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 13px; font-weight: bold; background: rgba(255,255,255,0.15); padding: 5px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.25); color: #fff;">
+                <input type="checkbox" id="simpleModeToggle" onchange="toggleSimpleMode(this.checked)" style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--success-color); margin: 0;">
+                <span>👵 Простой</span>
+            </label>
             <span id="netStatus" class="net-status" onclick="retryConnection()" style="cursor:pointer;" title="Нажмите для повторного подключения">🟡 Подключение...</span>
         </div>
     </header>
@@ -70,6 +74,9 @@
                 </div>
                 <p class="subtitle" style="text-align: center; margin-top: 4px;">Приоритетные задачи и прогресс обслуживания оборудования.</p>
             </div>
+
+            <!-- GPS Assistant for Simple Mode -->
+            <div id="gpsAssistantContainer"></div>
             
             <div class="card glass-card" id="routeProgressCard" style="margin-bottom: 12px; padding: 15px;">
                 <h3 style="margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--primary-color);">📊 Прогресс по маршрутам</h3>
@@ -459,75 +466,141 @@
             <p id="modalSubtitle" class="modal-subtitle"></p>
             <input type="hidden" id="modalMachineId">
             
-            <div class="form-group">
-                <label for="modalDate">Дата и время ТО</label>
-                <input type="datetime-local" id="modalDate" class="custom-input">
-            </div>
-
-            <div class="form-group">
-                <label for="modalCounter">Счетчик банкнот (оставьте пустым для автозаполнения)</label>
-                <input type="text" inputmode="numeric" id="modalCounter" placeholder="Введите значение со счетчика" class="custom-input">
-            </div>
-
-            <div class="form-group">
-                <label for="modalEmployee">Выполнил работу</label>
-                <div class="custom-select-wrapper" id="wrapper-modalEmployee">
-                    <input type="hidden" id="modalEmployee">
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <label>Вид работы</label>
-                <div class="checkbox-group">
-                    <label class="custom-checkbox">
-                        <input type="checkbox" class="work-check" id="workCheckMaintenance" value="Обслуживание машинки" checked>
-                        <span class="checkmark"></span>
-                        <span class="checkbox-label">Обслуживание машинки</span>
-                    </label>
-                    <label class="custom-checkbox">
-                        <input type="checkbox" class="work-check" id="workCheckRepair" value="Ремонт машинки" onchange="togglePartsVisibility(this.checked)">
-                        <span class="checkmark"></span>
-                        <span class="checkbox-label">Ремонт машинки</span>
-                    </label>
-                    <label class="custom-checkbox">
-                        <input type="checkbox" class="work-check" id="workCheckReplace" value="Замена машинки" onchange="toggleReplacementVisibility(this.checked)">
-                        <span class="checkmark"></span>
-                        <span class="checkbox-label">Замена машинки</span>
-                    </label>
-                </div>
-            </div>
-            
-            <div class="form-group" id="modalPartsContainer" style="display: none;">
-                <label>Использованные запчасти</label>
-                <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-end;">
-                    <div style="flex: 2;">
-                        <label style="font-size: 11px; margin-bottom: 2px; font-weight: normal; color: var(--text-secondary);">Выберите деталь</label>
-                        <select id="modalPartsSelect" class="custom-input" style="height: 36px; padding: 4px; font-size: 13px; margin: 0; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-primary);"></select>
+            <!-- Шаг 1: Вид работы -->
+            <div class="service-step" id="serviceStep1">
+                <label style="font-size: 15px; font-weight: bold; margin-bottom: 10px; display: block; color: var(--primary-color);">Шаг 1 из 5: Выберите вид выполненной работы</label>
+                
+                <!-- Крупные плитки выбора для простого режима -->
+                <div class="wizard-choice-grid">
+                    <div class="wizard-choice-card" id="choiceCardMaintenance" onclick="toggleWizardChoice('Maintenance')">
+                        <span style="font-size: 28px;">🧼</span>
+                        <span>Обслуживание (ТО)</span>
                     </div>
-                    <div style="width: 70px;">
-                        <label style="font-size: 11px; margin-bottom: 2px; font-weight: normal; color: var(--text-secondary);">Кол-во</label>
-                        <input type="number" id="modalPartsQty" value="1" min="1" max="100" class="custom-input" style="height: 36px; text-align: center; padding: 4px; margin: 0; width: 100%;">
+                    <div class="wizard-choice-card" id="choiceCardRepair" onclick="toggleWizardChoice('Repair')">
+                        <span style="font-size: 28px;">🔧</span>
+                        <span>Ремонт и запчасти</span>
                     </div>
-                    <button type="button" class="btn-outline" onclick="addSelectedPartToReport('modal')" style="height: 36px; padding: 0 12px; margin: 0; min-height: auto; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">➕</button>
+                    <div class="wizard-choice-card" id="choiceCardReplace" onclick="toggleWizardChoice('Replace')">
+                        <span style="font-size: 28px;">🔄</span>
+                        <span>Замена аппарата</span>
+                    </div>
                 </div>
-                <div id="modalPartsSelectedList" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; padding: 6px; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); background: rgba(0,0,0,0.01);"></div>
-                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: var(--success-color);">
-                    Стоимость запчастей: <span id="modalPartsCostPreview">0.00 EUR</span>
+
+                <!-- Скрытая группа стандартных чекбоксов -->
+                <div class="form-group" id="standardWorkTypeGroup">
+                    <label>Вид работы</label>
+                    <div class="checkbox-group">
+                        <label class="custom-checkbox">
+                            <input type="checkbox" class="work-check" id="workCheckMaintenance" value="Обслуживание машинки" checked onchange="syncWizardChoiceCards()">
+                            <span class="checkmark"></span>
+                            <span class="checkbox-label">Обслуживание машинки</span>
+                        </label>
+                        <label class="custom-checkbox">
+                            <input type="checkbox" class="work-check" id="workCheckRepair" value="Ремонт машинки" onchange="togglePartsVisibility(this.checked); syncWizardChoiceCards();">
+                            <span class="checkmark"></span>
+                            <span class="checkbox-label">Ремонт машинки</span>
+                        </label>
+                        <label class="custom-checkbox">
+                            <input type="checkbox" class="work-check" id="workCheckReplace" value="Замена машинки" onchange="toggleReplacementVisibility(this.checked); syncWizardChoiceCards();">
+                            <span class="checkmark"></span>
+                            <span class="checkbox-label">Замена машинки</span>
+                        </label>
+                    </div>
                 </div>
-                <textarea id="modalParts" rows="2" placeholder="Нажмите кнопку + выше для добавления деталей, либо перечислите через запятую..." class="custom-textarea"></textarea>
             </div>
 
-            <div class="form-group" id="modalReplacementContainer" style="display: none;">
-                <label for="modalReplacementSerial">Новый серийный № (S/N)</label>
-                <input type="text" id="modalReplacementSerial" placeholder="Новый S/N" class="custom-input" style="width: 100%; box-sizing: border-box;">
+            <!-- Шаг 2: Счетчик банкнот -->
+            <div class="service-step" id="serviceStep2">
+                <label style="font-size: 15px; font-weight: bold; margin-bottom: 10px; display: block; color: var(--primary-color);">Шаг 2 из 5: Введите показания счетчика</label>
+                <div class="form-group">
+                    <label for="modalCounter">Счетчик банкнот</label>
+                    <input type="text" inputmode="numeric" id="modalCounter" placeholder="Введите значение со счетчика" class="custom-input">
+                </div>
+                
+                <!-- Встроенная клавиатура Numpad -->
+                <div class="simple-numpad">
+                    <div class="numpad-key" onclick="pressNumpadKey('1')">1</div>
+                    <div class="numpad-key" onclick="pressNumpadKey('2')">2</div>
+                    <div class="numpad-key" onclick="pressNumpadKey('3')">3</div>
+                    <div class="numpad-key" onclick="pressNumpadKey('4')">4</div>
+                    <div class="numpad-key" onclick="pressNumpadKey('5')">5</div>
+                    <div class="numpad-key" onclick="pressNumpadKey('6')">6</div>
+                    <div class="numpad-key" onclick="pressNumpadKey('7')">7</div>
+                    <div class="numpad-key" onclick="pressNumpadKey('8')">8</div>
+                    <div class="numpad-key" onclick="pressNumpadKey('9')">9</div>
+                    <div class="numpad-key numpad-clear" onclick="pressNumpadKey('C')">Сброс</div>
+                    <div class="numpad-key" onclick="pressNumpadKey('0')">0</div>
+                    <div class="numpad-key numpad-backspace" onclick="pressNumpadKey('⌫')">⌫</div>
+                </div>
+                <button type="button" class="btn-outline" onclick="copyLastCounter()" style="width: 100%; margin-top: 8px;">
+                    📋 Вставить прошлый счетчик
+                </button>
             </div>
 
-            <div class="form-group">
-                <label for="modalNotes">Заметки / Требуется ремонт</label>
-                <textarea id="modalNotes" rows="2" placeholder="Что нужно заменить?" class="custom-textarea"></textarea>
+            <!-- Шаг 3: Выбор запчастей -->
+            <div class="service-step" id="serviceStep3">
+                <label style="font-size: 15px; font-weight: bold; margin-bottom: 10px; display: block; color: var(--primary-color);">Шаг 3 из 5: Выберите запчасти (при ремонте)</label>
+                
+                <!-- Таблица с кнопками +/- для простого режима -->
+                <div id="simplePartsPickerGrid" class="simple-parts-picker"></div>
+                
+                <!-- Стандартный селектор деталей -->
+                <div class="form-group" id="modalPartsContainer" style="display: none;">
+                    <label>Использованные запчасти</label>
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-end;">
+                        <div style="flex: 2;">
+                            <label style="font-size: 11px; margin-bottom: 2px; font-weight: normal; color: var(--text-secondary);">Выберите деталь</label>
+                            <select id="modalPartsSelect" class="custom-input" style="height: 36px; padding: 4px; font-size: 13px; margin: 0; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-primary);"></select>
+                        </div>
+                        <div style="width: 70px;">
+                            <label style="font-size: 11px; margin-bottom: 2px; font-weight: normal; color: var(--text-secondary);">Кол-во</label>
+                            <input type="number" id="modalPartsQty" value="1" min="1" max="100" class="custom-input" style="height: 36px; text-align: center; padding: 4px; margin: 0; width: 100%;">
+                        </div>
+                        <button type="button" class="btn-outline" onclick="addSelectedPartToReport('modal')" style="height: 36px; padding: 0 12px; margin: 0; min-height: auto; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">➕</button>
+                    </div>
+                    <div id="modalPartsSelectedList" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; padding: 6px; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); background: rgba(0,0,0,0.01);"></div>
+                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: var(--success-color);">
+                        Стоимость запчастей: <span id="modalPartsCostPreview">0.00 EUR</span>
+                    </div>
+                    <textarea id="modalParts" rows="2" placeholder="Нажмите кнопку + выше для добавления деталей, либо перечислите через запятую..." class="custom-textarea"></textarea>
+                </div>
             </div>
-            
-            <button class="btn-success btn-full" onclick="saveService()">✅ Сохранить ТО</button>
+
+            <!-- Шаг 4: Серийный номер при замене -->
+            <div class="service-step" id="serviceStep4">
+                <label style="font-size: 15px; font-weight: bold; margin-bottom: 10px; display: block; color: var(--primary-color);">Шаг 4 из 5: Новый серийный номер (при замене)</label>
+                <div class="form-group" id="modalReplacementContainer" style="display: none;">
+                    <label for="modalReplacementSerial">Новый серийный № (S/N)</label>
+                    <input type="text" id="modalReplacementSerial" placeholder="Новый S/N" class="custom-input" style="width: 100%; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <!-- Шаг 5: Исполнитель и примечания -->
+            <div class="service-step" id="serviceStep5">
+                <label style="font-size: 15px; font-weight: bold; margin-bottom: 10px; display: block; color: var(--primary-color);">Шаг 5 из 5: Подтверждение и Заметки</label>
+                <div class="form-group">
+                    <label for="modalDate">Дата и время ТО</label>
+                    <input type="datetime-local" id="modalDate" class="custom-input">
+                </div>
+                <div class="form-group">
+                    <label for="modalEmployee">Выполнил работу</label>
+                    <div class="custom-select-wrapper" id="wrapper-modalEmployee">
+                        <input type="hidden" id="modalEmployee">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="modalNotes">Заметки / Требуется ремонт</label>
+                    <textarea id="modalNotes" rows="2" placeholder="Что нужно заменить?" class="custom-textarea"></textarea>
+                </div>
+                
+                <button class="btn-success btn-full" onclick="saveService()" style="height: 56px; font-size: 18px;">✅ Сохранить ТО</button>
+            </div>
+
+            <!-- Кнопки переключения шагов для Упрощенного режима -->
+            <div class="wizard-navigation">
+                <button type="button" class="btn-outline" id="btnWizardPrev" onclick="wizardPrevStep()" style="flex:1; height: 50px;">◀ Назад</button>
+                <button type="button" class="btn-primary" id="btnWizardNext" onclick="wizardNextStep()" style="flex:1; height: 50px;">Далее ▶</button>
+            </div>
             
             <div style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
                 <button class="btn-outline btn-full" id="btnTogglePrevService" onclick="togglePrevServiceHistory()" style="font-size:12px; padding:6px; min-height: 32px; margin-top:0;">📜 Прошлые ремонты оборудования</button>

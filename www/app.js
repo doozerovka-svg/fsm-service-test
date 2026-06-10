@@ -167,6 +167,11 @@ db.history = deduplicateById(ensureArray(db.history));
 document.addEventListener('DOMContentLoaded', () => {
     const savedTheme = localStorage.getItem('fsm_theme') || 'light';
     toggleDarkTheme(savedTheme === 'dark');
+    
+    // Initialize Simple Mode
+    const savedSimpleMode = localStorage.getItem('fsm_simple_mode') === 'true';
+    toggleSimpleMode(savedSimpleMode, false);
+    
     checkUserRole();
     renderAll();
     initializeFirebase();
@@ -1102,6 +1107,12 @@ function openServiceModal(machineId) {
     document.getElementById('modalReplacementContainer').style.display = 'none';
     document.getElementById('modalReplacementSerial').value = '';
     
+    // Initialize Wizard for Simple Mode
+    currentWizardStep = 1;
+    renderWizardStep();
+    syncWizardChoiceCards();
+    renderSimplePartsPicker(m.model, a.bank);
+    
     // Populate performer dropdown and preselect current logged-in employee or machine's responsible employee
     const currentEmp = localStorage.getItem('fsm_user_employee_name') || m.employee || '';
     populateDropdown('modalEmployee', db.employees, currentEmp);
@@ -1618,6 +1629,9 @@ function toggleRouteFilter(routeName) {
 window.toggleRouteFilter = toggleRouteFilter;
 
 function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH2, isCompleted, isOverdue, isPending) {
+    if (isSimpleMode) {
+        return getMachineCardSimpleHtml(mach, a, completedH1, targetH1, completedH2, targetH2, isCompleted, isOverdue, isPending);
+    }
     const F = mach.freq;
     
     // Overdue calculations based on selected dashboard active month
@@ -1737,6 +1751,9 @@ function getMachineCardHtml(mach, a, completedH1, targetH1, completedH2, targetH
 function renderDashboard() {
     const container = document.getElementById('dashboardList');
     if (!container) return;
+    
+    // Render GPS Assistant
+    renderGpsAssistant();
     
     // Set Month Header text (Russian Months)
     const months = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
@@ -2062,6 +2079,11 @@ function renderDashboard() {
             const routeName = a ? a.route || 'Без маршрута' : 'Без маршрута';
             return routeName === dashboardSelectedRoute;
         });
+    }
+    
+    // Apply GPS address filter (for simple mode auto-suggestion)
+    if (isSimpleMode && dashboardGpsAddressFilter) {
+        routeFilteredList = routeFilteredList.filter(item => item.mach.addressId == dashboardGpsAddressFilter);
     }
     
     // Apply search filter
@@ -4184,5 +4206,543 @@ window.savePricesSettings = savePricesSettings;
 window.openActsModal = openActsModal;
 window.renderActReport = renderActReport;
 window.printGeneratedAct = printGeneratedAct;
+
+// =========================================================================
+// ACCESSIBILITY: SIMPLE MODE (БАБУШКА-РЕЖИМ)
+// =========================================================================
+let isSimpleMode = localStorage.getItem('fsm_simple_mode') === 'true';
+let dashboardGpsAddressFilter = null;
+let gpsDetecting = false;
+
+function toggleSimpleMode(enabled, showToastAlert = true) {
+    isSimpleMode = enabled;
+    localStorage.setItem('fsm_simple_mode', enabled);
+    
+    const toggleEl = document.getElementById('simpleModeToggle');
+    if (toggleEl) toggleEl.checked = enabled;
+    
+    if (enabled) {
+        document.body.classList.add('simple-mode');
+        if (showToastAlert) showToast('👵 Простой режим включен');
+    } else {
+        document.body.classList.remove('simple-mode');
+        if (showToastAlert) showToast('ℹ️ Упрощенный режим отключен');
+        dashboardGpsAddressFilter = null;
+    }
+    
+    // Rerender all tabs to reflect layout changes
+    renderAll();
+}
+window.toggleSimpleMode = toggleSimpleMode;
+
+function renderGpsAssistant() {
+    const container = document.getElementById('gpsAssistantContainer');
+    if (!container) return;
+    
+    if (!isSimpleMode) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    // Check if we are currently filtering by location
+    if (dashboardGpsAddressFilter) {
+        const addr = db.addresses.find(a => a.id == dashboardGpsAddressFilter);
+        const name = addr ? `${addr.bank}, ${addr.address}` : 'Выбранный адрес';
+        container.innerHTML = `
+            <div class="gps-assistant-card">
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #0369a1;">
+                    📍 Вы на точке:<br>
+                    <span style="font-size: 18px; color: #0f172a; display: block; margin-top: 5px; font-weight: 800;">${name}</span>
+                </div>
+                <button class="btn-primary" onclick="clearGpsFilter()" style="background: var(--danger-color); border-color: var(--danger-color); color: #fff; width: 100%;">
+                    ❌ Показать все точки (Сбросить)
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    // We are not filtering. Check if detecting
+    if (gpsDetecting) {
+        container.innerHTML = `
+            <div class="gps-assistant-card">
+                <div style="font-size: 16px; font-weight: bold; color: #0369a1; animation: pulse 1.5s infinite; text-align: center;">
+                    📡 Ищем ближайшую точку по GPS...
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Suggest nearest if GPS has coordinates
+    let nearestAddr = null;
+    let minDistance = Infinity;
+    
+    if (currentUserLat !== null && currentUserLon !== null) {
+        db.addresses.forEach(a => {
+            const cached = geocodeCache[a.address];
+            if (cached && !cached.failed && !cached.pending) {
+                const dist = haversineDistance(currentUserLat, currentUserLon, cached.lat, cached.lon);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestAddr = a;
+                }
+            }
+        });
+    }
+    
+    if (nearestAddr && minDistance <= 300) {
+        const name = `${nearestAddr.bank}, ${nearestAddr.address}`;
+        container.innerHTML = `
+            <div class="gps-assistant-card">
+                <div style="font-size: 15px; font-weight: bold; margin-bottom: 8px; color: #0369a1;">
+                    📍 Вы приехали на объект?
+                </div>
+                <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-bottom: 12px; line-height: 1.3;">
+                    ${name} <br>
+                    <span style="font-size: 13px; color: #64748b; font-weight: normal;">(около ${Math.round(minDistance)} метров)</span>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-success" onclick="selectGpsFilter(${nearestAddr.id})" style="flex: 2; height: 50px;">
+                        👉 Да, показать эти аппараты
+                    </button>
+                    <button class="btn-outline" onclick="detectNearestLocation()" style="flex: 1; height: 50px; border-color: #0284c7; color: #0284c7;">
+                        🔄 Обновить
+                    </button>
+                </div>
+            </div>
+        `;
+    } else {
+        container.innerHTML = `
+            <div class="gps-assistant-card">
+                <div style="font-size: 15px; font-weight: bold; margin-bottom: 12px; color: #0369a1;">
+                    📍 Поиск аппаратов по GPS (Автовыбор)
+                </div>
+                <button class="btn-primary" onclick="detectNearestLocation()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 18px; font-weight: bold; height: 50px;">
+                    🔍 Я НА МЕСТЕ (НАЙТИ МЕНЯ)
+                </button>
+            </div>
+        `;
+    }
+}
+
+function selectGpsFilter(id) {
+    dashboardGpsAddressFilter = id;
+    renderDashboard();
+}
+window.selectGpsFilter = selectGpsFilter;
+
+function clearGpsFilter() {
+    dashboardGpsAddressFilter = null;
+    renderDashboard();
+}
+window.clearGpsFilter = clearGpsFilter;
+
+function detectNearestLocation() {
+    if (gpsDetecting) return;
+    gpsDetecting = true;
+    renderDashboard();
+    
+    showToast('⏳ Запрашиваем GPS у телефона...');
+    
+    const successCallback = (lat, lon) => {
+        currentUserLat = lat;
+        currentUserLon = lon;
+        gpsDetecting = false;
+        
+        let nearestAddr = null;
+        let minDistance = Infinity;
+        
+        db.addresses.forEach(a => {
+            const cached = geocodeCache[a.address];
+            if (cached && !cached.failed && !cached.pending) {
+                const dist = haversineDistance(lat, lon, cached.lat, cached.lon);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestAddr = a;
+                }
+            }
+        });
+        
+        if (nearestAddr && minDistance <= 300) {
+            showToast(`📍 Ближайшая точка: ${nearestAddr.bank}`);
+        } else {
+            showToast('📍 Поблизости не найдено известных адресов. Запускаем фоновое геокодирование...');
+            db.addresses.forEach(a => {
+                if (!geocodeCache[a.address]) {
+                    enqueueGeocode(a.address).then(res => {
+                        if (res) throttleRenderDashboard();
+                    });
+                }
+            });
+        }
+        renderDashboard();
+    };
+    
+    const errorCallback = (err) => {
+        gpsDetecting = false;
+        showToast('❌ Ошибка GPS: ' + err.message);
+        renderDashboard();
+    };
+
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation) {
+        window.Capacitor.Plugins.Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        }).then((position) => {
+            successCallback(position.coords.latitude, position.coords.longitude);
+        }).catch((error) => {
+            errorCallback(error);
+        });
+    } else {
+        if (!navigator.geolocation) {
+            gpsDetecting = false;
+            showToast('⚠️ Геолокация не поддерживается');
+            renderDashboard();
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => successCallback(position.coords.latitude, position.coords.longitude),
+            (error) => errorCallback(error),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    }
+}
+window.detectNearestLocation = detectNearestLocation;
+
+// =========================================================================
+// WIZARD FOR SERVICE MODAL (УПРОЩЕННЫЙ ШАГ ЗА ШАГОМ)
+// =========================================================================
+let currentWizardStep = 1;
+
+function renderWizardStep() {
+    if (!isSimpleMode) {
+        // Show all steps as a single form
+        document.querySelectorAll('#serviceModal .service-step').forEach(step => {
+            step.style.display = 'block';
+        });
+        const nav = document.querySelector('#serviceModal .wizard-navigation');
+        if (nav) nav.style.display = 'none';
+        
+        // Show standard parts picker elements
+        const standardPartsGroup = document.getElementById('modalPartsContainer');
+        if (standardPartsGroup) {
+            const isRepair = document.getElementById('workCheckRepair').checked;
+            standardPartsGroup.style.display = isRepair ? 'block' : 'none';
+        }
+        return;
+    }
+    
+    // Simple Mode: Step-by-step
+    const steps = document.querySelectorAll('#serviceModal .service-step');
+    steps.forEach(step => {
+        step.style.display = 'none';
+        step.classList.remove('active-step');
+    });
+    
+    // Ensure we are in bounds
+    if (currentWizardStep < 1) currentWizardStep = 1;
+    if (currentWizardStep > 5) currentWizardStep = 5;
+    
+    const activeStepEl = document.getElementById(`serviceStep${currentWizardStep}`);
+    if (activeStepEl) {
+        activeStepEl.style.display = 'block';
+        activeStepEl.classList.add('active-step');
+    }
+    
+    // Navigation buttons
+    const nav = document.querySelector('#serviceModal .wizard-navigation');
+    if (nav) nav.style.display = 'flex';
+    
+    const btnPrev = document.getElementById('btnWizardPrev');
+    const btnNext = document.getElementById('btnWizardNext');
+    
+    if (btnPrev) {
+        btnPrev.style.visibility = currentWizardStep === 1 ? 'hidden' : 'visible';
+    }
+    
+    if (btnNext) {
+        if (currentWizardStep === 5) {
+            btnNext.style.display = 'none';
+        } else {
+            btnNext.style.display = 'block';
+        }
+    }
+}
+window.renderWizardStep = renderWizardStep;
+
+function wizardNextStep() {
+    const isRepair = document.getElementById('workCheckRepair').checked;
+    const isReplace = document.getElementById('workCheckReplace').checked;
+    
+    // Validate Step 4 (Replacement Serial) before going next
+    if (currentWizardStep === 4 && isReplace) {
+        const replacementSerial = document.getElementById('modalReplacementSerial').value.replace(/\s/g, '');
+        if (!replacementSerial) {
+            showToast('⚠️ Введите новый серийный номер аппарата!');
+            return;
+        }
+    }
+    
+    currentWizardStep++;
+    
+    // Skip parts step if not repair
+    if (currentWizardStep === 3 && !isRepair) {
+        currentWizardStep++;
+    }
+    // Skip replacement step if not replace
+    if (currentWizardStep === 4 && !isReplace) {
+        currentWizardStep++;
+    }
+    
+    if (currentWizardStep > 5) currentWizardStep = 5;
+    renderWizardStep();
+}
+window.wizardNextStep = wizardNextStep;
+
+function wizardPrevStep() {
+    const isRepair = document.getElementById('workCheckRepair').checked;
+    const isReplace = document.getElementById('workCheckReplace').checked;
+    
+    currentWizardStep--;
+    
+    // Skip replacement step backwards
+    if (currentWizardStep === 4 && !isReplace) {
+        currentWizardStep--;
+    }
+    // Skip parts step backwards
+    if (currentWizardStep === 3 && !isRepair) {
+        currentWizardStep--;
+    }
+    
+    if (currentWizardStep < 1) currentWizardStep = 1;
+    renderWizardStep();
+}
+window.wizardPrevStep = wizardPrevStep;
+
+function toggleWizardChoice(type) {
+    const cb = document.getElementById(`workCheck${type}`);
+    if (cb) {
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+window.toggleWizardChoice = toggleWizardChoice;
+
+function syncWizardChoiceCards() {
+    const types = ['Maintenance', 'Repair', 'Replace'];
+    types.forEach(t => {
+        const cb = document.getElementById(`workCheck${t}`);
+        const card = document.getElementById(`choiceCard${t}`);
+        if (cb && card) {
+            if (cb.checked) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        }
+    });
+}
+window.syncWizardChoiceCards = syncWizardChoiceCards;
+
+// =========================================================================
+// NUMPAD FOR COUNTER (ВСТРОЕННАЯ КЛАВИАТУРА)
+// =========================================================================
+function pressNumpadKey(key) {
+    const input = document.getElementById('modalCounter');
+    if (!input) return;
+    
+    let val = input.value.replace(/\s/g, '');
+    if (key === 'C') {
+        val = '';
+    } else if (key === '⌫') {
+        val = val.slice(0, -1);
+    } else {
+        // Allow up to 10 digits
+        if (val.length < 10) {
+            val += key;
+        }
+    }
+    
+    input.value = val;
+    // Format input with spaces
+    formatInputWithSpaces(input);
+}
+window.pressNumpadKey = pressNumpadKey;
+
+function copyLastCounter() {
+    const machineId = parseInt(document.getElementById('modalMachineId').value);
+    if (isNaN(machineId)) return;
+    
+    const sortedHistory = [...db.history].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const prevRecord = sortedHistory.find(h => h.machineId == machineId && h.counter && h.counter.trim() !== '');
+    
+    if (prevRecord) {
+        const input = document.getElementById('modalCounter');
+        if (input) {
+            input.value = prevRecord.counter;
+            formatInputWithSpaces(input);
+            showToast('📋 Скопирован счетчик: ' + prevRecord.counter);
+        }
+    } else {
+        showToast('⚠️ Прошлый счетчик не найден');
+    }
+}
+window.copyLastCounter = copyLastCounter;
+
+// =========================================================================
+// ACCESSIBLE PARTS PICKER (ТАБЛИЦА ЗАПЧАСТЕЙ С КНОПКАМИ +/-)
+// =========================================================================
+function renderSimplePartsPicker(machineModel, bankName) {
+    const container = document.getElementById('simplePartsPickerGrid');
+    if (!container) return;
+    
+    // Clear if simple mode not active
+    if (!isSimpleMode) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    // Filter compatible parts
+    const compatibleParts = (db.prices.parts || []).filter(p => {
+        return isPartModelMatch(p.model, machineModel);
+    });
+    
+    // Deduplicate by name
+    const uniquePartNames = [];
+    compatibleParts.forEach(p => {
+        if (!uniquePartNames.includes(p.name)) {
+            uniquePartNames.push(p.name);
+        }
+    });
+    uniquePartNames.sort((a, b) => a.localeCompare(b, 'ru'));
+    
+    if (uniquePartNames.length === 0) {
+        container.innerHTML = '<div style="font-size:13px; color:var(--text-muted); text-align:center; padding:12px;">Для этой модели нет запчастей в прайсе</div>';
+        return;
+    }
+    
+    let html = '';
+    uniquePartNames.forEach(name => {
+        const partInfo = getMatchedPartInfo(name, bankName, machineModel);
+        const price = partInfo ? partInfo.price : 0;
+        const currency = partInfo ? partInfo.currency : 'EUR';
+        
+        // Find current qty in selected parts
+        const existing = currentSelectedParts['modal'].find(p => p.name === name);
+        const qty = existing ? existing.qty : 0;
+        
+        html += `
+            <div class="simple-part-row" style="margin-bottom: 8px;">
+                <div style="flex:1; padding-right:8px;">
+                    <div style="font-weight:bold; font-size:14px;">${name}</div>
+                    <div style="font-size:12px; color:var(--text-secondary);">${price.toFixed(2)} ${currency}</div>
+                </div>
+                <div class="simple-part-controls">
+                    <button type="button" class="simple-part-qty-btn" onclick="adjustSimplePartQty('${name.replace(/'/g, "\\'")}', -1, '${bankName.replace(/'/g, "\\'")}', '${machineModel.replace(/'/g, "\\'")}')">-</button>
+                    <span class="simple-part-qty-val" style="min-width: 20px; text-align:center; font-weight:bold;">${qty}</span>
+                    <button type="button" class="simple-part-qty-btn" onclick="adjustSimplePartQty('${name.replace(/'/g, "\\'")}', 1, '${bankName.replace(/'/g, "\\'")}', '${machineModel.replace(/'/g, "\\'")}')">+</button>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+window.renderSimplePartsPicker = renderSimplePartsPicker;
+
+function adjustSimplePartQty(name, change, bankName, machineModel) {
+    const parts = currentSelectedParts['modal'];
+    const existing = parts.find(p => p.name === name);
+    
+    if (existing) {
+        existing.qty += change;
+        if (existing.qty <= 0) {
+            // Remove
+            const idx = parts.indexOf(existing);
+            parts.splice(idx, 1);
+        }
+    } else if (change > 0) {
+        parts.push({ name, qty: change });
+    }
+    
+    renderSimplePartsPicker(machineModel, bankName);
+    renderSelectedPartsList('modal', bankName, machineModel);
+}
+window.adjustSimplePartQty = adjustSimplePartQty;
+
+// =========================================================================
+// ACCESSIBLE SIMPLE CARD LAYOUT FOR DASHBOARD
+// =========================================================================
+function getMachineCardSimpleHtml(mach, a, completedH1, targetH1, completedH2, targetH2, isCompleted, isOverdue, isPending) {
+    const F = mach.freq;
+    const addrText = a ? `${a.bank}, ${a.address}` : 'Адрес удален';
+    
+    // Status text and colors
+    let statusLabel = '🔵 В ПЛАНАХ';
+    let statusColor = '#0284c7';
+    let borderLeftColor = '#0284c7';
+    
+    if (isOverdue) {
+        statusLabel = '🔴 ПРОСРОЧЕНО';
+        statusColor = 'var(--danger-color)';
+        borderLeftColor = 'var(--danger-color)';
+    } else if (isCompleted) {
+        statusLabel = '🟢 ВЫПОЛНЕНО';
+        statusColor = 'var(--success-color)';
+        borderLeftColor = 'var(--success-color)';
+    } else if (F === 0) {
+        statusLabel = '⚪ ПО ЗАПРОСУ';
+        statusColor = '#64748b';
+        borderLeftColor = '#64748b';
+    }
+    
+    // Progress description
+    let progressDesc = '';
+    if (F > 0) {
+        progressDesc = `План: ${completedH1 + completedH2} из ${F} за месяц`;
+    } else {
+        progressDesc = `По запросу (Сделано: ${completedH1 + completedH2})`;
+    }
+    
+    return `
+        <div class="card glass-card machine-check-card simple-mode-card" style="margin-bottom: 16px; padding: 20px; border-left: 8px solid ${borderLeftColor};">
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 20px; font-weight: 800; color: var(--text-primary); margin-bottom: 6px;">📠 ${mach.model}</div>
+                <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">
+                    S/N: <strong style="font-size: 15px; color: #000;">${formatSeparated(mach.serial)}</strong>
+                </div>
+                
+                ${mach.problem ? `<div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); padding: 8px 12px; border-radius: 6px; color: var(--danger-color); font-size: 14px; font-weight: bold; margin-bottom: 10px;">⚠️ Поломка: ${mach.problem}</div>` : ''}
+                
+                <div style="font-size: 15px; color: var(--text-secondary); line-height: 1.4; display: flex; align-items: flex-start; gap: 4px; margin-bottom: 10px;">
+                    <span style="font-size: 18px;">📍</span>
+                    <strong>${addrText}</strong>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: rgba(0,0,0,0.03); padding: 10px 14px; border-radius: 8px;">
+                <span style="font-weight: 900; font-size: 16px; color: ${statusColor};">${statusLabel}</span>
+                <span style="font-size: 13px; font-weight: bold; color: var(--text-secondary);">${progressDesc}</span>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn-success" onclick="openServiceModal(${mach.id})" style="width: 100%; min-height: 56px; font-size: 20px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    🛠️ НАЧАТЬ ОБСЛУЖИВАНИЕ
+                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-outline" onclick="openMapInKodular('${(a ? a.address : '').replace(/'/g, "\\'")}')" style="flex: 1; min-height: 48px; font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 6px; border-color: #0284c7; color: #0284c7;">
+                        🗺️ КАРТА
+                    </button>
+                    <button class="btn-danger" onclick="openProblemModal(${mach.id})" style="flex: 1; min-height: 48px; font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        ⚠️ ПОЛОМКА
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+window.getMachineCardSimpleHtml = getMachineCardSimpleHtml;
 
 
