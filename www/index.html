@@ -54,7 +54,7 @@
             <span class="logo-text">Сервис Машин</span>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-            <span id="netStatus" class="net-status">🟡 Подключение...</span>
+            <span id="netStatus" class="net-status" onclick="retryConnection()" style="cursor:pointer;" title="Нажмите для повторного подключения">🟡 Подключение...</span>
         </div>
     </header>
 
@@ -869,9 +869,48 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+                    .then(reg => {
+                        console.log('Service Worker registered successfully:', reg.scope);
+                        
+                        // Check for updates
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    showPwaUpdateToast();
+                                }
+                            });
+                        });
+                    })
                     .catch(err => console.error('Service Worker registration failed:', err));
             });
+        }
+
+        function showPwaUpdateToast() {
+            const toast = document.createElement('div');
+            toast.style.position = 'fixed';
+            toast.style.bottom = '95px';
+            toast.style.left = '50%';
+            toast.style.transform = 'translateX(-50%)';
+            toast.style.background = 'var(--primary-color, #0056b3)';
+            toast.style.color = '#fff';
+            toast.style.padding = '12px 20px';
+            toast.style.borderRadius = 'var(--radius-md, 6px)';
+            toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            toast.style.zIndex = '9999';
+            toast.style.fontSize = '13px';
+            toast.style.fontWeight = 'bold';
+            toast.style.cursor = 'pointer';
+            toast.style.display = 'flex';
+            toast.style.alignItems = 'center';
+            toast.style.gap = '8px';
+            
+            toast.innerHTML = '✨ Доступна новая версия! <span style="text-decoration:underline;">Обновить</span>';
+            toast.onclick = () => {
+                window.location.reload(true);
+            };
+            
+            document.body.appendChild(toast);
         }
     </script>
 </body>

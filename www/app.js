@@ -378,17 +378,37 @@ function initializeFirebase() {
     }
 }
 
-function saveData(path = null, data = null) {
+function saveData(path = null, data = undefined) {
     localStorage.setItem('fsm_db_v11', JSON.stringify(db));
     renderAll();
 
     if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-        // ALWAYS write the entire database to maintain array structure compatibility for older clients
-        firebase.database().ref('fsm_data').set(db).catch((error) => {
-            console.log("Синхронизация отложена (офлайн): " + error.message);
-        });
+        if (path && data !== undefined) {
+            const fullPath = path.startsWith('fsm_data') ? path : 'fsm_data/' + path;
+            firebase.database().ref(fullPath).set(data).catch((error) => {
+                console.log("Синхронизация пути отложена (офлайн): " + error.message);
+            });
+        } else {
+            // ALWAYS write the entire database as a fallback/clean sync
+            firebase.database().ref('fsm_data').set(db).catch((error) => {
+                console.log("Синхронизация отложена (офлайн): " + error.message);
+            });
+        }
     }
 }
+
+function retryConnection() {
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        showToast('⏳ Проверяем подключение к серверу...');
+        firebase.database().goOffline();
+        setTimeout(() => {
+            firebase.database().goOnline();
+        }, 500);
+    } else {
+        showToast('⚠️ Firebase SDK не инициализирован');
+    }
+}
+window.retryConnection = retryConnection;
 
 // =========================================================================
 // GEOLOCATION SERVICES
