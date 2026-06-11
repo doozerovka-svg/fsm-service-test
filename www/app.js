@@ -1143,7 +1143,7 @@ function openServiceModal(machineId) {
     document.getElementById('workCheckReplace').checked = false;
     document.getElementById('modalPartsContainer').style.display = 'none';
     document.getElementById('modalReplacementContainer').style.display = 'none';
-    document.getElementById(pfx + 'ReplacementSerial').value = '';
+    document.getElementById('modalReplacementSerial').value = '';
     
     // Initialize Wizard for Simple Mode
     currentWizardStep = 1;
@@ -4532,7 +4532,7 @@ function wizardNextStep() {
     
     // Validate Step 4 (Replacement Serial) before going next
     if (currentWizardStep === 4 && isReplace) {
-        const replacementSerial = document.getElementById(pfx + 'ReplacementSerial').value.replace(/\s/g, '');
+        const replacementSerial = document.getElementById('modalReplacementSerial').value.replace(/\s/g, '');
         if (!replacementSerial) {
             showToast('⚠️ Введите новый серийный номер аппарата!');
             return;
