@@ -1082,7 +1082,45 @@ function nextMonth() {
 window.prevMonth = prevMonth;
 window.nextMonth = nextMonth;
 
+function openStandardServiceModal(machineId) {
+    const m = db.machines.find(x => x.id == machineId);
+    if (!m) return;
+    const a = db.addresses.find(x => x.id == m.addressId);
+    if (!a) return;
+    
+    document.getElementById('stdMachineId').value = machineId;
+    document.getElementById('stdTitle').innerText = `ТО: ${m.model}`;
+    document.getElementById('stdSubtitle').innerText = `${a.bank}, ${a.address}\nS/N: ${m.serial}`;
+    
+    document.getElementById('stdDate').value = getLocalDatetimeString(new Date());
+    document.getElementById('stdCounter').value = '';
+    document.getElementById('stdNotes').value = '';
+    document.getElementById('stdParts').value = '';
+    setupPartsSelector('std', m.model, a.bank, '');
+    
+    document.getElementById('stdWorkCheckMaintenance').checked = true;
+    document.getElementById('stdWorkCheckRepair').checked = false;
+    document.getElementById('stdWorkCheckReplace').checked = false;
+    document.getElementById('stdPartsContainer').style.display = 'none';
+    document.getElementById('stdReplacementContainer').style.display = 'none';
+    document.getElementById('stdReplacementSerial').value = '';
+    
+    const currentEmp = localStorage.getItem('fsm_user_employee_name') || m.employee || '';
+    populateDropdown('stdEmployee', db.employees, currentEmp);
+    
+    renderMachineHistory(m.id, 'stdPrevServiceHistoryList');
+    const prevHistoryContainer = document.getElementById('stdPrevServiceHistoryContainer');
+    if (prevHistoryContainer) prevHistoryContainer.style.display = 'none';
+    const btnToggle = document.getElementById('stdTogglePrevService');
+    if (btnToggle) btnToggle.innerText = '📜 Прошлые ремонты оборудования';
+    
+    document.getElementById('standardServiceModal').style.display = 'flex';
+}
+
 function openServiceModal(machineId) {
+    if (!isSimpleMode) {
+        return openStandardServiceModal(machineId);
+    }
     const m = db.machines.find(x => x.id == machineId);
     if (!m) return;
     const a = db.addresses.find(x => x.id == m.addressId);
@@ -1105,7 +1143,7 @@ function openServiceModal(machineId) {
     document.getElementById('workCheckReplace').checked = false;
     document.getElementById('modalPartsContainer').style.display = 'none';
     document.getElementById('modalReplacementContainer').style.display = 'none';
-    document.getElementById('modalReplacementSerial').value = '';
+    document.getElementById(pfx + 'ReplacementSerial').value = '';
     
     // Initialize Wizard for Simple Mode
     currentWizardStep = 1;
@@ -1145,7 +1183,7 @@ function saveService() {
     let replacementSerial = '';
     
     if (isReplace) {
-        replacementSerial = document.getElementById('modalReplacementSerial').value.replace(/\s/g, '');
+        replacementSerial = document.getElementById(pfx + 'ReplacementSerial').value.replace(/\s/g, '');
         if (!replacementSerial) {
             showToast('⚠️ Введите новый серийный номер для замены машинки!');
             return;
@@ -4494,7 +4532,7 @@ function wizardNextStep() {
     
     // Validate Step 4 (Replacement Serial) before going next
     if (currentWizardStep === 4 && isReplace) {
-        const replacementSerial = document.getElementById('modalReplacementSerial').value.replace(/\s/g, '');
+        const replacementSerial = document.getElementById(pfx + 'ReplacementSerial').value.replace(/\s/g, '');
         if (!replacementSerial) {
             showToast('⚠️ Введите новый серийный номер аппарата!');
             return;
