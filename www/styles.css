@@ -2403,9 +2403,11 @@ body.dark .simple-part-row {
 body.simple-mode .simple-mode-only {
     display: block !important;
 }
-body.simple-mode span.simple-mode-only,
-body.simple-mode label.simple-mode-only {
+body.simple-mode span.simple-mode-only {
     display: inline-block !important;
+}
+body.simple-mode label.simple-mode-only {
+    display: block !important;
 }
 body.simple-mode div.simple-mode-only.wizard-choice-grid {
     display: flex !important;
@@ -2432,9 +2434,9 @@ body.simple-mode .service-step.active-step {
 
 body:not(.simple-mode) .service-step {
     display: block !important;
-    margin-bottom: 24px;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 20px;
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
 }
 body:not(.simple-mode) .service-step:last-of-type {
     border-bottom: none;
