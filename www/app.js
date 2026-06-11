@@ -1165,15 +1165,23 @@ function openServiceModal(machineId) {
     document.getElementById('serviceModal').style.display = 'flex';
 }
 
-function saveService() {
-    const machineId = parseInt(document.getElementById('modalMachineId').value);
-    const dateVal = document.getElementById('modalDate').value;
-    let counter = document.getElementById('modalCounter').value.replace(/\s/g, '');
-    const employee = document.getElementById('modalEmployee').value;
-    let parts = document.getElementById('modalParts').value.trim();
-    let notes = document.getElementById('modalNotes').value.trim();
+function saveService(isStandard) {
+    // Choose correct form prefix based on which modal is open
+    const p = isStandard ? 'std' : 'modal';
+
+    const machineId = parseInt(document.getElementById(p + 'MachineId').value);
+    const dateVal = document.getElementById(p + 'Date').value;
+    let counter = document.getElementById(p + 'Counter').value.replace(/\s/g, '');
+    const employee = document.getElementById(p + 'Employee').value;
+    let parts = document.getElementById(p + 'Parts').value.trim();
+    let notes = document.getElementById(p + 'Notes').value.trim();
     let tasks = [];
-    document.querySelectorAll('.work-check:checked').forEach(cb => tasks.push(cb.value));
+    const modalEl = document.getElementById(isStandard ? 'standardServiceModal' : 'serviceModal');
+    if (modalEl) {
+        modalEl.querySelectorAll('.work-check:checked').forEach(cb => tasks.push(cb.value));
+    } else {
+        document.querySelectorAll('.work-check:checked').forEach(cb => tasks.push(cb.value));
+    }
 
     const m = db.machines.find(x => x.id == machineId);
     if (!m) return;
@@ -1183,7 +1191,7 @@ function saveService() {
     let replacementSerial = '';
     
     if (isReplace) {
-        replacementSerial = document.getElementById(pfx + 'ReplacementSerial').value.replace(/\s/g, '');
+        replacementSerial = document.getElementById(p + 'ReplacementSerial').value.replace(/\s/g, '');
         if (!replacementSerial) {
             showToast('⚠️ Введите новый серийный номер для замены машинки!');
             return;
