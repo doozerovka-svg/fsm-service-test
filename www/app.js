@@ -4823,6 +4823,25 @@ let html5QrcodeScanner = null;
 
 function openQrModal() {
     document.getElementById('qrModal').style.display = 'flex';
+    
+    if (typeof Html5Qrcode === 'undefined') {
+        showToast('Загрузка модуля сканера...');
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/html5-qrcode';
+        script.onload = () => {
+            initScanner();
+        };
+        script.onerror = () => {
+            showToast('⚠️ Ошибка сети. Не удалось загрузить сканер.');
+            closeQrModal();
+        }
+        document.head.appendChild(script);
+    } else {
+        initScanner();
+    }
+}
+
+function initScanner() {
     if (!html5QrcodeScanner) {
         html5QrcodeScanner = new Html5Qrcode("qr-reader");
     }
