@@ -4800,3 +4800,67 @@ function getMachineCardSimpleHtml(mach, a, completedH1, targetH1, completedH2, t
 window.getMachineCardSimpleHtml = getMachineCardSimpleHtml;
 
 
+
+
+// ================= DEBOUNCE WRAPPERS =================
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+window.debouncedHandleDashboardSearchInput = debounce(handleDashboardSearchInput, 300);
+window.debouncedFilterAddressTab = debounce((el) => filterAddressTab(el), 300);
+window.debouncedRenderHistory = debounce(renderHistory, 300);
+window.debouncedRenderProblems = debounce(renderProblems, 300);
+window.debouncedRenderPartsPrices = debounce(renderPartsPrices, 300);
+
+
+// ================= QR SCANNER =================
+let html5QrcodeScanner = null;
+
+function openQrModal() {
+    document.getElementById('qrModal').style.display = 'flex';
+    if (!html5QrcodeScanner) {
+        html5QrcodeScanner = new Html5Qrcode("qr-reader");
+    }
+    
+    html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        onQrScanSuccess,
+        (error) => { /* ignore frame errors */ }
+    ).catch(err => {
+        showToast('⚠️ Ошибка камеры: ' + err);
+    });
+}
+
+function closeQrModal() {
+    document.getElementById('qrModal').style.display = 'none';
+    if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+        html5QrcodeScanner.stop().catch(e => console.error(e));
+    }
+}
+
+function onQrScanSuccess(decodedText, decodedResult) {
+    if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+        html5QrcodeScanner.stop().catch(e => console.error(e));
+    }
+    document.getElementById('qrModal').style.display = 'none';
+    
+    const text = decodedText.trim();
+    let machine = db.machines.find(m => m.id == text || m.serial.toLowerCase() === text.toLowerCase());
+    
+    if (machine) {
+        showToast('✅ Машинка найдена: ' + machine.model);
+        openServiceModal(machine.id);
+    } else {
+        showToast('❌ Машинка не найдена (Скан: ' + text + ')');
+    }
+}
+
+window.openQrModal = openQrModal;
+window.closeQrModal = closeQrModal;
+window.onQrScanSuccess = onQrScanSuccess;
