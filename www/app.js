@@ -322,6 +322,8 @@ function initializeFirebase() {
                 db.routes = ensureArray(db.routes);
                 db.employees = ensureArray(db.employees);
                 db.cities = ensureArray(db.cities);
+                db.routeStates = db.routeStates || {};
+                db.routeStatesDate = db.routeStatesDate || '';
                 
                 const rawAddr = ensureArray(db.addresses);
                 const rawMach = ensureArray(db.machines);
@@ -2028,69 +2030,49 @@ function renderDashboard() {
         }
     });
     
-    // Render Route Progress Bars
+    // Render Route Progress Cards / Chips ("Маршруты дня")
     const routeProgressListEl = document.getElementById('routeProgressList');
     if (routeProgressListEl) {
+        checkAndResetDailyRouteStates();
         const activeRoutes = Object.keys(routeStats).filter(r => routeStats[r].total > 0 || routeStats[r].hasMachines).sort();
         if (activeRoutes.length === 0) {
             routeProgressListEl.innerHTML = '<p style="font-size:12px; color:var(--text-muted); padding: 4px 0; margin: 0; grid-column: 1 / -1; text-align: center;">Нет данных по маршрутам</p>';
         } else {
             const routesCardsHtml = activeRoutes.map(routeName => {
                 const stats = routeStats[routeName];
-                const isOnRequest = stats.hasMachines && !stats.hasScheduled;
                 const percent = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
                 
-                let fillBarColor = 'var(--primary-color)';
-                if (stats.hasOverdue) {
-                    fillBarColor = 'linear-gradient(90deg, #f87171, #ef4444)';
-                } else if (stats.total > 0 && stats.completed >= stats.total) {
-                    fillBarColor = 'linear-gradient(90deg, #34d399, #10b981)';
-                } else if (stats.hasWarning) {
-                    fillBarColor = 'linear-gradient(90deg, #eab308, #ca8a04)';
-                } else {
-                    if (percent === 100) {
-                        fillBarColor = 'linear-gradient(90deg, #10b981, #059669)';
-                    } else if (percent > 0) {
-                        fillBarColor = 'linear-gradient(90deg, #3b82f6, #2563eb)';
-                    } else {
-                        fillBarColor = '#d1d5db';
-                    }
-                }
+                const rStateObj = (db.routeStates && db.routeStates[routeName]) ? db.routeStates[routeName] : { status: 'planned' };
+                const rState = rStateObj.status || 'planned';
                 
-                const statusText = isOnRequest 
-                    ? `По запросу` 
-                    : `${percent}% (${stats.completed}/${stats.total})`;
+                let statusClass = 'status-planned';
+                let pillClass = 'planned';
+                let statusBadgeText = '⚪ В планах';
                 
-                let statusColor = 'var(--primary-color)';
-                if (isOnRequest) {
-                    statusColor = 'var(--text-secondary)';
-                } else if (percent === 100) {
-                    statusColor = 'var(--success-color)';
-                }
-                
-                let statusClass = '';
-                if (stats.hasOverdue) {
-                    statusClass = 'status-overdue';
-                } else if (stats.total > 0 && stats.completed >= stats.total) {
+                if (rState === 'in_progress') {
+                    statusClass = 'status-in-progress';
+                    pillClass = 'in-progress';
+                    statusBadgeText = '🟡 В пути';
+                } else if (rState === 'completed' || (stats.total > 0 && stats.completed >= stats.total)) {
                     statusClass = 'status-completed';
-                } else if (stats.hasWarning) {
-                    statusClass = 'status-warning';
+                    pillClass = 'completed';
+                    statusBadgeText = '🟢 Выполнен ✔️';
                 }
                 
                 const isActiveFilter = dashboardSelectedRoute === routeName;
+                const progressText = stats.hasScheduled ? `${percent}% (${stats.completed}/${stats.total})` : `По запросу`;
+
                 return `
                     <div class="route-progress-card ${statusClass} ${isActiveFilter ? 'active-filter' : ''}" 
-                         onclick="toggleRouteFilter('${routeName.replace(/'/g, "\\'")}')"
-                         style="padding: 8px 10px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: center; min-height: 48px; cursor: pointer; transition: var(--transition-quick);">
-                        <div style="display:flex; justify-content:space-between; margin-bottom: ${isOnRequest ? '0' : '6px'}; font-size:11px; font-weight:600; gap: 4px;">
-                            <span class="route-name" style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex: 1;" title="${routeName}">${routeName}</span>
-                            <span class="route-status-text" style="color:${statusColor}; white-space: nowrap;">${statusText}</span>
+                         onclick="openRouteActionsModal('${routeName.replace(/'/g, "\\'")}')">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px; gap: 4px;">
+                            <span class="route-name" style="font-size:12px; font-weight:700; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1;" title="${routeName}">${routeName}</span>
+                            <span class="route-status-pill ${pillClass}">${statusBadgeText}</span>
                         </div>
-                        ${isOnRequest ? '' : `
-                        <div style="background: rgba(0,0,0,0.06); height: 5px; border-radius: 3px; overflow: hidden; position: relative;">
-                            <div style="background: ${fillBarColor}; width: ${percent}%; height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 3px;"></div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-secondary);">
+                            <span>${stats.total} машин(ы)</span>
+                            <span style="font-weight:600;">${progressText}</span>
                         </div>
-                        `}
                     </div>
                 `;
             }).join('');
@@ -4891,3 +4873,200 @@ function onQrScanSuccess(decodedText, decodedResult) {
 window.openQrModal = openQrModal;
 window.closeQrModal = closeQrModal;
 window.onQrScanSuccess = onQrScanSuccess;
+
+
+// ================= МАРШРУТЫ ДНЯ (SMART ROUTE STATUS) =================
+let activeModalRouteName = null;
+
+function checkAndResetDailyRouteStates() {
+    if (!db) return;
+    db.routeStates = db.routeStates || {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    if (db.routeStatesDate !== todayStr) {
+        console.log("New day (" + todayStr + "). Resetting route states.");
+        db.routeStatesDate = todayStr;
+        Object.keys(db.routeStates).forEach(routeName => {
+            if (db.routeStates[routeName]) {
+                db.routeStates[routeName].status = 'planned';
+                db.routeStates[routeName].date = todayStr;
+            }
+        });
+        saveData();
+    }
+}
+
+function openRouteActionsModal(routeName) {
+    activeModalRouteName = routeName;
+    checkAndResetDailyRouteStates();
+    
+    const rStateObj = (db.routeStates && db.routeStates[routeName]) ? db.routeStates[routeName] : { status: 'planned' };
+    const rStatus = rStateObj.status || 'planned';
+    
+    const routeMachines = db.machines.filter(m => {
+        const a = db.addresses.find(addr => addr.id == m.addressId);
+        const rName = a ? (a.route || 'Без маршрута') : 'Без маршрута';
+        return rName === routeName;
+    });
+    
+    const titleEl = document.getElementById('routeModalTitle');
+    const subTitleEl = document.getElementById('routeModalSubtitle');
+    if (titleEl) titleEl.innerText = `Маршрут: ${routeName}`;
+    if (subTitleEl) subTitleEl.innerText = `Всего объектов на маршруте: ${routeMachines.length}`;
+    
+    const pillEl = document.getElementById('routeModalStatusPill');
+    if (pillEl) {
+        pillEl.className = 'route-status-pill ' + (rStatus === 'in_progress' ? 'in-progress' : rStatus === 'completed' ? 'completed' : 'planned');
+        pillEl.innerText = rStatus === 'in_progress' ? '🟡 В пути / В процессе' : rStatus === 'completed' ? '🟢 Выполнен ✔️' : '⚪ В планах';
+    }
+    
+    const btnStart = document.getElementById('btnRouteStart');
+    const btnComplete = document.getElementById('btnRouteComplete');
+    
+    if (btnStart) {
+        btnStart.innerText = rStatus === 'in_progress' ? '🟡 На маршруте (Активен)' : '🚀 Начать маршрут (В пути)';
+    }
+    if (btnComplete) {
+        btnComplete.innerText = rStatus === 'completed' ? '🟢 Завершен (Отметить снова)' : '✅ Отметить выполненным';
+    }
+    
+    const listEl = document.getElementById('routeModalMachineList');
+    const countEl = document.getElementById('routeModalMachineCount');
+    if (countEl) countEl.innerText = `${routeMachines.length} шт.`;
+    
+    if (listEl) {
+        if (routeMachines.length === 0) {
+            listEl.innerHTML = '<p style="font-size:12px; color:var(--text-muted); margin:0;">Нет привязанных машин</p>';
+        } else {
+            listEl.innerHTML = routeMachines.map(m => {
+                const a = db.addresses.find(addr => addr.id == m.addressId);
+                const thisMonthServices = db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date) && isActualService(h));
+                const isServiced = thisMonthServices.length > 0;
+                return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 6px 8px; background: rgba(0,0,0,0.03); border-radius: var(--radius-sm); font-size:12px;">
+                        <div>
+                            <strong style="color:var(--primary-color);">${m.model}</strong> <span style="color:var(--text-secondary); font-size:11px;">(S/N: ${m.serial})</span>
+                            <div style="font-size:10px; color:var(--text-muted);">${a ? a.bank + ', ' + a.address : 'Без адреса'}</div>
+                        </div>
+                        <span class="badge ${isServiced ? 'success' : 'warning'}" style="font-size:10px;">${isServiced ? '✔️ Обслужена' : '⏳ Ожидает'}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+    
+    document.getElementById('routeActionsModal').style.display = 'flex';
+}
+
+function setRouteStatus(routeName, status) {
+    if (!db) return;
+    db.routeStates = db.routeStates || {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentEmp = localStorage.getItem('fsm_user_employee_name') || 'Инженер';
+    
+    db.routeStates[routeName] = {
+        status: status,
+        date: todayStr,
+        employee: currentEmp,
+        updatedAt: new Date().toISOString()
+    };
+    db.routeStatesDate = todayStr;
+    
+    const routeKey = routeName.replace(/[.#$/[\]]/g, '_');
+    saveData('routeStates/' + routeKey, db.routeStates[routeName]);
+    saveData('routeStatesDate', todayStr);
+}
+
+function startRouteFromModal() {
+    if (!activeModalRouteName) return;
+    setRouteStatus(activeModalRouteName, 'in_progress');
+    dashboardSelectedRoute = activeModalRouteName;
+    closeAllModals();
+    showToast(`🚀 Маршрут "${activeModalRouteName}" начат! Список отфильтрован.`);
+    renderDashboard();
+    triggerHapticFeedback();
+}
+
+function completeRouteFromModal() {
+    if (!activeModalRouteName) return;
+    const rName = activeModalRouteName;
+    
+    confirmModal("Завершение маршрута", `Отметить маршрут "${rName}" как выполненный? Автоматически зафиксировать ТО для всех необслуженных машин маршрута?`, () => {
+        setRouteStatus(rName, 'completed');
+        
+        const routeMachines = db.machines.filter(m => {
+            const a = db.addresses.find(addr => addr.id == m.addressId);
+            return (a ? (a.route || 'Без маршрута') : 'Без маршрута') === rName;
+        });
+        
+        const currentEmp = localStorage.getItem('fsm_user_employee_name') || 'Инженер';
+        const isoDate = new Date().toISOString();
+        let autoCount = 0;
+        
+        routeMachines.forEach(m => {
+            const thisMonthServices = db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date) && isActualService(h));
+            if (thisMonthServices.length === 0) {
+                const newRecord = {
+                    id: Date.now() + Math.floor(Math.random() * 1000),
+                    machineId: m.id,
+                    machineSerial: m.serial,
+                    machineInv: m.inv || '',
+                    date: isoDate,
+                    counter: '',
+                    employee: currentEmp,
+                    parts: '',
+                    tasks: ['Обслуживание машинки'],
+                    notes: 'Авто-закрытие в составе выполненного маршрута'
+                };
+                m.problem = "";
+                db.history.unshift(newRecord);
+                saveData('history/' + newRecord.id, newRecord);
+                autoCount++;
+            }
+        });
+        
+        saveData();
+        closeAllModals();
+        showToast(`🟢 Маршрут "${rName}" выполнен! (Обслужено машин: ${autoCount})`);
+        renderDashboard();
+        triggerHapticFeedback();
+    });
+}
+
+function filterRouteFromModal() {
+    if (!activeModalRouteName) return;
+    toggleRouteFilter(activeModalRouteName);
+    closeAllModals();
+}
+
+function buildMultiStopRouteMapFromModal() {
+    if (!activeModalRouteName) return;
+    const rName = activeModalRouteName;
+    
+    const addressesOnRoute = [];
+    db.machines.forEach(m => {
+        const a = db.addresses.find(addr => addr.id == m.addressId);
+        if (a && (a.route || 'Без маршрута') === rName && a.address) {
+            if (!addressesOnRoute.includes(a.address)) {
+                addressesOnRoute.push(a.address);
+            }
+        }
+    });
+    
+    if (addressesOnRoute.length === 0) {
+        showToast('⚠️ На этом маршруте нет зафиксированных адресов');
+        return;
+    }
+    
+    const encodedPoints = addressesOnRoute.map(addr => encodeURIComponent(addr)).join('~');
+    const yandexMapsUrl = `https://yandex.ru/maps/?rtext=${encodedPoints}&rtt=auto`;
+    
+    window.open(yandexMapsUrl, '_blank');
+    showToast(`🗺️ Открыта карта для ${addressesOnRoute.length} точек`);
+}
+
+window.openRouteActionsModal = openRouteActionsModal;
+window.startRouteFromModal = startRouteFromModal;
+window.completeRouteFromModal = completeRouteFromModal;
+window.filterRouteFromModal = filterRouteFromModal;
+window.buildMultiStopRouteMapFromModal = buildMultiStopRouteMapFromModal;

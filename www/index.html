@@ -24,7 +24,7 @@
     <meta name="theme-color" content="#0056b3">
 
     <!-- App Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=46.5">
+    <link rel="stylesheet" href="styles.css?v=46.6">
 </head>
 <body>
 
@@ -79,7 +79,7 @@
             <div id="gpsAssistantContainer"></div>
             
             <div class="card glass-card" id="routeProgressCard" style="margin-bottom: 12px; padding: 15px;">
-                <h3 style="margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--primary-color);">📊 Прогресс по маршрутам</h3>
+                <h3 style="margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--primary-color);">🗺️ Маршруты дня</h3>
                 <div id="routeProgressList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;">
                     <!-- Динамические мини-прогрессбары -->
                 </div>
@@ -835,6 +835,47 @@
         </div>
     </div>
 
+    <!-- Модальное окно: Действия по маршруту ("Маршрут дня") -->
+    <div id="routeActionsModal" class="modal">
+        <div class="modal-backdrop" onclick="closeAllModals()"></div>
+        <div class="modal-content" style="max-width: 440px;">
+            <span class="close-btn" onclick="closeAllModals()">&times;</span>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span id="routeModalStatusPill" class="route-status-pill planned">⚪ В планах</span>
+                <span id="routeModalProgressText" style="font-size: 11px; font-weight: 600; color: var(--text-secondary);"></span>
+            </div>
+            <h3 id="routeModalTitle" style="margin-top: 0; margin-bottom: 4px; font-size: 18px; color: var(--primary-color);">Название маршрута</h3>
+            <p id="routeModalSubtitle" class="modal-subtitle" style="margin-bottom: 15px; font-size: 13px; color: var(--text-secondary);"></p>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+                <button id="btnRouteStart" class="btn-primary btn-full" onclick="startRouteFromModal()" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-size: 15px; font-weight: 600;">
+                    🚀 Начать маршрут (В пути)
+                </button>
+                
+                <button id="btnRouteComplete" class="btn-success btn-full" onclick="completeRouteFromModal()" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-size: 15px; font-weight: 600;">
+                    ✅ Отметить выполненным
+                </button>
+
+                <button class="btn-outline btn-full" onclick="buildMultiStopRouteMapFromModal()" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; font-size: 14px; font-weight: 500;">
+                    🗺️ Построить маршрут на карте
+                </button>
+
+                <button class="btn-outline btn-full" onclick="filterRouteFromModal()" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; font-size: 14px; font-weight: 500;">
+                    🔍 Показать машины в чек-листе
+                </button>
+            </div>
+
+            <!-- Список точек / машин входящих в маршрут -->
+            <div style="border-top: 1px solid var(--border-color); padding-top: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Точки и машины на маршруте:</span>
+                    <span id="routeModalMachineCount" style="font-size: 11px; color: var(--text-muted);"></span>
+                </div>
+                <div id="routeModalMachineList" style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Модальное окно: Прайс-листы (Администратор) -->
     <div id="pricesModal" class="modal">
         <div class="modal-backdrop" onclick="closeAllModals()"></div>
@@ -1041,7 +1082,7 @@
     </div>
 
     <!-- App Script logic -->
-    <script src="app.js?v=46.5"></script>
+    <script src="app.js?v=46.6"></script>
     
     <!-- PWA Service Worker Registration -->
     <script>
