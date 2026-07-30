@@ -2051,8 +2051,15 @@ function renderDashboard() {
                 const stats = routeStats[routeName];
                 const percent = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
                 
-                const rStateObj = (db.routeStates && db.routeStates[routeName]) ? db.routeStates[routeName] : { status: 'planned' };
-                const rState = rStateObj.status || 'planned';
+                const monthKey = `${dashboardActiveDate.getFullYear()}-${String(dashboardActiveDate.getMonth() + 1).padStart(2, '0')}`;
+                const rStateObj = (db.routeStates && db.routeStates[monthKey] && db.routeStates[monthKey][routeName]) 
+                    ? db.routeStates[monthKey][routeName] 
+                    : { status: 'planned' };
+                let rState = rStateObj.status || 'planned';
+                
+                if (stats.total > 0 && stats.completed >= stats.total) {
+                    rState = 'completed';
+                }
                 
                 let statusClass = 'status-planned';
                 let pillClass = 'planned';
@@ -2062,7 +2069,7 @@ function renderDashboard() {
                     statusClass = 'status-in-progress';
                     pillClass = 'in-progress';
                     statusBadgeText = '🟡 В пути';
-                } else if (rState === 'completed' || (stats.total > 0 && stats.completed >= stats.total)) {
+                } else if (rState === 'completed') {
                     statusClass = 'status-completed';
                     pillClass = 'completed';
                     statusBadgeText = '🟢 Выполнен ✔️';
@@ -4887,20 +4894,40 @@ window.onQrScanSuccess = onQrScanSuccess;
 // ================= МАРШРУТЫ ДНЯ (SMART ROUTE STATUS) =================
 let activeModalRouteName = null;
 
+function getActiveMonthKey() {
+    const d = dashboardActiveDate || new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+}
+
 function checkAndResetDailyRouteStates() {
     if (!db) return;
     db.routeStates = db.routeStates || {};
     const todayStr = new Date().toISOString().split('T')[0];
-    
+    const monthKey = getActiveMonthKey();
+    db.routeStates[monthKey] = db.routeStates[monthKey] || {};
+
+    // Legacy migration: if db.routeStates had route names directly as root keys
+    Object.keys(db.routeStates).forEach(k => {
+        if (k !== monthKey && typeof db.routeStates[k] === 'object' && db.routeStates[k].status) {
+            const curMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+            db.routeStates[curMonthKey] = db.routeStates[curMonthKey] || {};
+            db.routeStates[curMonthKey][k] = db.routeStates[k];
+            delete db.routeStates[k];
+        }
+    });
+
     if (db.routeStatesDate !== todayStr) {
-        console.log("New day (" + todayStr + "). Resetting route states.");
         db.routeStatesDate = todayStr;
-        Object.keys(db.routeStates).forEach(routeName => {
-            if (db.routeStates[routeName]) {
-                db.routeStates[routeName].status = 'planned';
-                db.routeStates[routeName].date = todayStr;
-            }
-        });
+        const curMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+        if (db.routeStates[curMonthKey]) {
+            Object.keys(db.routeStates[curMonthKey]).forEach(routeName => {
+                if (db.routeStates[curMonthKey][routeName] && db.routeStates[curMonthKey][routeName].status === 'in_progress') {
+                    db.routeStates[curMonthKey][routeName].status = 'planned';
+                }
+            });
+        }
         saveData();
     }
 }
@@ -4909,14 +4936,26 @@ function openRouteActionsModal(routeName) {
     activeModalRouteName = routeName;
     checkAndResetDailyRouteStates();
     
-    const rStateObj = (db.routeStates && db.routeStates[routeName]) ? db.routeStates[routeName] : { status: 'planned' };
-    const rStatus = rStateObj.status || 'planned';
+    const monthKey = getActiveMonthKey();
+    const rStateObj = (db.routeStates && db.routeStates[monthKey] && db.routeStates[monthKey][routeName]) 
+        ? db.routeStates[monthKey][routeName] 
+        : { status: 'planned' };
+    let rStatus = rStateObj.status || 'planned';
     
     const routeMachines = db.machines.filter(m => {
         const a = db.addresses.find(addr => addr.id == m.addressId);
         const rName = a ? (a.route || 'Без маршрута') : 'Без маршрута';
         return rName === routeName;
     });
+
+    const servicedCount = routeMachines.filter(m => {
+        const thisMonthServices = db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date) && isActualService(h));
+        return thisMonthServices.length > 0;
+    }).length;
+
+    if (routeMachines.length > 0 && servicedCount >= routeMachines.length) {
+        rStatus = 'completed';
+    }
     
     const titleEl = document.getElementById('routeModalTitle');
     const subTitleEl = document.getElementById('routeModalSubtitle');
@@ -4970,10 +5009,13 @@ function openRouteActionsModal(routeName) {
 function setRouteStatus(routeName, status) {
     if (!db) return;
     db.routeStates = db.routeStates || {};
+    const monthKey = getActiveMonthKey();
+    db.routeStates[monthKey] = db.routeStates[monthKey] || {};
+
     const todayStr = new Date().toISOString().split('T')[0];
     const currentEmp = localStorage.getItem('fsm_user_employee_name') || 'Инженер';
     
-    db.routeStates[routeName] = {
+    db.routeStates[monthKey][routeName] = {
         status: status,
         date: todayStr,
         employee: currentEmp,
@@ -4982,7 +5024,7 @@ function setRouteStatus(routeName, status) {
     db.routeStatesDate = todayStr;
     
     const routeKey = routeName.replace(/[.#$/[\]]/g, '_');
-    saveData('routeStates/' + routeKey, db.routeStates[routeName]);
+    saveData('routeStates/' + monthKey + '/' + routeKey, db.routeStates[monthKey][routeName]);
     saveData('routeStatesDate', todayStr);
 }
 
