@@ -233,6 +233,15 @@ function showToast(msg) {
     }, 3500);
 }
 
+function triggerHapticFeedback() {
+    try {
+        if (navigator.vibrate) {
+            navigator.vibrate(30);
+        }
+    } catch (e) {}
+}
+window.triggerHapticFeedback = triggerHapticFeedback;
+
 function showError(title, text) {
     const spinner = document.getElementById('loadingSpinner');
     if (spinner) spinner.style.display = 'none';
@@ -4991,43 +5000,53 @@ function completeRouteFromModal() {
     if (!activeModalRouteName) return;
     const rName = activeModalRouteName;
     
-    confirmModal("Завершение маршрута", `Отметить маршрут "${rName}" как выполненный? Автоматически зафиксировать ТО для всех необслуженных машин маршрута?`, () => {
+    const routeMachines = db.machines.filter(m => {
+        const a = db.addresses.find(addr => addr.id == m.addressId);
+        return (a ? (a.route || 'Без маршрута') : 'Без маршрута') === rName;
+    });
+
+    const confirmActionText = routeMachines.length > 0 
+        ? `ОТМЕТИТЬ МАРШРУТ "${rName}" КАК ВЫПОЛНЕННЫЙ (и провести ТО для необслуженных машин)` 
+        : `ОТМЕТИТЬ МАРШРУТ "${rName}" КАК ВЫПОЛНЕННЫЙ`;
+
+    doubleConfirm(confirmActionText, () => {
         setRouteStatus(rName, 'completed');
-        
-        const routeMachines = db.machines.filter(m => {
-            const a = db.addresses.find(addr => addr.id == m.addressId);
-            return (a ? (a.route || 'Без маршрута') : 'Без маршрута') === rName;
-        });
         
         const currentEmp = localStorage.getItem('fsm_user_employee_name') || 'Инженер';
         const isoDate = new Date().toISOString();
         let autoCount = 0;
         
-        routeMachines.forEach(m => {
-            const thisMonthServices = db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date) && isActualService(h));
-            if (thisMonthServices.length === 0) {
-                const newRecord = {
-                    id: Date.now() + Math.floor(Math.random() * 1000),
-                    machineId: m.id,
-                    machineSerial: m.serial,
-                    machineInv: m.inv || '',
-                    date: isoDate,
-                    counter: '',
-                    employee: currentEmp,
-                    parts: '',
-                    tasks: ['Обслуживание машинки'],
-                    notes: 'Авто-закрытие в составе выполненного маршрута'
-                };
-                m.problem = "";
-                db.history.unshift(newRecord);
-                saveData('history/' + newRecord.id, newRecord);
-                autoCount++;
-            }
-        });
+        if (routeMachines.length > 0) {
+            routeMachines.forEach(m => {
+                const thisMonthServices = db.history.filter(h => h.machineId == m.id && isCurrentMonth(h.date) && isActualService(h));
+                if (thisMonthServices.length === 0) {
+                    const newRecord = {
+                        id: Date.now() + Math.floor(Math.random() * 1000),
+                        machineId: m.id,
+                        machineSerial: m.serial,
+                        machineInv: m.inv || '',
+                        date: isoDate,
+                        counter: '',
+                        employee: currentEmp,
+                        parts: '',
+                        tasks: ['Обслуживание машинки'],
+                        notes: 'Авто-закрытие в составе выполненного маршрута'
+                    };
+                    m.problem = "";
+                    db.history.unshift(newRecord);
+                    saveData('history/' + newRecord.id, newRecord);
+                    autoCount++;
+                }
+            });
+        }
         
         saveData();
         closeAllModals();
-        showToast(`🟢 Маршрут "${rName}" выполнен! (Обслужено машин: ${autoCount})`);
+        if (autoCount > 0) {
+            showToast(`🟢 Маршрут "${rName}" выполнен! (Обслужено машин: ${autoCount})`);
+        } else {
+            showToast(`🟢 Маршрут "${rName}" выполнен!`);
+        }
         renderDashboard();
         triggerHapticFeedback();
     });
